@@ -1,0 +1,43 @@
+{
+  "publication_kind": "official-archive-import",
+  "imported_at": "2026-11-02",
+  "evidence": "https://games-cn.org/forums/topic/games202zuoyehuizong/",
+  "archives": [
+    {
+      "directory": "hw0",
+      "url": "https://games-cn.org/wp-content/uploads/2021/03/HW0.zip",
+      "sha256": "e9ae12db30b18aef28c1b596305456f2b9869d52a593ece1769c75745688859a",
+      "bytes": 2008823
+    },
+    {
+      "directory": "hw1",
+      "url": "https://games-cn.org/wp-content/uploads/2021/03/hw1.zip",
+      "sha256": "664c84175fefc22da9641bd59a4c8877ad811a31a7ea4e5b02430361b0db67eb",
+      "bytes": 4123210
+    },
+    {
+      "directory": "hw2",
+      "url": "https://games-cn.org/wp-content/uploads/2021/04/GAMES202_Assignment2.zip",
+      "sha256": "106f86e628ecfcada545029ceb121716e579260820c1925c0a0a813717132c6a",
+      "bytes": 49002001
+    },
+    {
+      "directory": "hw3",
+      "url": "https://games-cn.org/wp-content/uploads/2021/05/GAMES202_homework3.zip",
+      "sha256": "aafe2922b7fd70b297869d997440585324d89bfb57f2ed5efc501eb3646a5e1d",
+      "bytes": 39155524
+    },
+    {
+      "directory": "hw4",
+      "url": "https://games-cn.org/wp-content/uploads/2021/06/GAMES202-homework4.zip",
+      "sha256": "df1e9c7576b1f1e16a99fb49536d588d5e52d1fb958238d3bee5403c8b58febc",
+      "bytes": 19548787
+    },
+    {
+      "directory": "hw5",
+      "url": "https://games-cn.org/wp-content/uploads/2021/08/GAMES202-homework5.zip",
+      "sha256": "3d3b5637ebe94ed2cced52871b8d5ea905bb29c80dc82d675096771fc0140885",
+      "bytes": 359763
+    }
+  ]
+}
