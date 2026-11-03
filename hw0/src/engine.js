@@ -6,7 +6,7 @@ function GAMES202Main() {
 	const canvas = document.querySelector('#glcanvas');
 	canvas.width = window.screen.width;
 	canvas.height = window.screen.height;
-	const gl = canvas.getContext('webgl');
+	const gl = canvas.getContext('webgl', {preserveDrawingBuffer: true});
 	if (!gl) {
 		alert('Unable to initialize WebGL. Your browser or machine may not support it.');
 		return;
@@ -34,6 +34,7 @@ function GAMES202Main() {
 	const pointLight = new PointLight(250, [1, 1, 1]);
 
 	const renderer = new WebGLRenderer(gl, camera);
+    window.labScene = {gl, renderer, camera};
 	renderer.addLight(pointLight);
 	loadOBJ(renderer, 'assets/mary/', 'Marry');
 

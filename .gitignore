@@ -3,3 +3,6 @@
 __MACOSX/
 node_modules/
 .csdiy-import-state.json
+
+output/
+hw0/lib/gl-matrix-min.js

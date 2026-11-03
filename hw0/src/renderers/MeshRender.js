@@ -76,7 +76,7 @@ class MeshRender {
 				this.shader.program.attribs[this.mesh.verticesName]);
 		}
 
-		if (this.mesh.hasNormals) {
+		if (this.mesh.hasNormals && this.shader.program.attribs[this.mesh.normalsName] >= 0) {
 			const numComponents = 3;
 			const type = gl.FLOAT;
 			const normalize = false;
@@ -94,7 +94,7 @@ class MeshRender {
 				this.shader.program.attribs[this.mesh.normalsName]);
 		}
 
-		if (this.mesh.hasTexcoords) {
+		if (this.mesh.hasTexcoords && this.shader.program.attribs[this.mesh.texcoordsName] >= 0) {
 			const numComponents = 2;
 			const type = gl.FLOAT;
 			const normalize = false;
@@ -125,6 +125,13 @@ class MeshRender {
 			false,
 			modelViewMatrix);
 
+        const model = mat4.create();
+        mat4.translate(model, model, transform.translate);
+        mat4.scale(model, model, transform.scale);
+        const normal = mat3.create();
+        mat3.normalFromMat4(normal, model);
+        gl.uniformMatrix4fv(this.shader.program.uniforms.uModelMatrix, false, model);
+        gl.uniformMatrix3fv(this.shader.program.uniforms.uNormalMatrix, false, normal);
 		// Specific the camera uniforms
 		gl.uniform3fv(
 			this.shader.program.uniforms.uCameraPos,

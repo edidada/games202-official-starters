@@ -18,7 +18,7 @@ class Shader {
 
         if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
             console.error(shaderSource);
-            console.error(('shader compiler error:\n' + gl.getShaderInfoLog(shader)));
+            throw new Error('shader compiler error: ' + gl.getShaderInfoLog(shader));
         }
 
         return shader;
@@ -32,7 +32,7 @@ class Shader {
         gl.linkProgram(prog);
 
         if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
-            abort('shader linker error:\n' + gl.getProgramInfoLog(prog));
+            throw new Error('shader linker error: ' + gl.getProgramInfoLog(prog));
         }
         return prog;
     };
