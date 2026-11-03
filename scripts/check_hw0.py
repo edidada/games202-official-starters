@@ -22,14 +22,21 @@ try:
         page.on('pageerror', lambda error: errors.append(str(error)))
         page.on('console', lambda message: errors.append(message.text) if message.type == 'error' and 'favicon' not in message.text else None)
         page.goto(f'http://127.0.0.1:{server.server_port}/', wait_until='networkidle')
-        page.wait_for_function('window.labScene && labScene.renderer.meshes.length > 0', timeout=60000)
+        page.wait_for_function('window.labLoadError || (window.labScene && labScene.renderer.meshes.length >= 2)', timeout=60000)
+        assert page.evaluate('window.labLoadError || null') is None, page.evaluate('window.labLoadError')
         page.wait_for_timeout(1500)
         gl_error = page.evaluate('labScene.gl.getError()')
         assert gl_error == 0, f'WebGL error {gl_error}'
-        screenshot = page.locator('#glcanvas').screenshot(path=str(output/'mary-blinn-phong.png'))
-        image = Image.open(io.BytesIO(screenshot)).convert('RGB')
+        # Read actual framebuffer: DOM GUI pixels cannot satisfy this check.
+        frame = page.evaluate("""() => {
+          const gl=labScene.gl, pixels=new Uint8Array(gl.drawingBufferWidth*gl.drawingBufferHeight*4);
+          gl.readPixels(0,0,gl.drawingBufferWidth,gl.drawingBufferHeight,gl.RGBA,gl.UNSIGNED_BYTE,pixels);
+          return {width:gl.drawingBufferWidth,height:gl.drawingBufferHeight,pixels:Array.from(pixels)};
+        }""")
+        image = Image.frombytes('RGBA', (frame['width'], frame['height']), bytes(frame['pixels'])).transpose(Image.Transpose.FLIP_TOP_BOTTOM).convert('RGB')
+        image.save(output/'mary-blinn-phong.png')
         lit = sum(max(pixel)-min(pixel) > 15 and max(pixel) > 35 for pixel in image.getdata())
-        assert lit > 500, f'Model did not visibly render: {lit} colored pixels'
+        assert lit > 5000, f'Model did not visibly render: {lit} colored pixels'
         result = page.evaluate('''() => {
           const canvas = document.createElement('canvas'); canvas.width=64;canvas.height=64;
           const gl=canvas.getContext('webgl');

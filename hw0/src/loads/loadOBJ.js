@@ -12,7 +12,7 @@ function loadOBJ(renderer, path, name) {
 			console.log('model ' + Math.round(percentComplete, 2) + '% downloaded');
 		}
 	}
-	function onError() { }
+	function onError(error) { throw error || new Error("OBJ/MTL loading failed"); }
 
 	new THREE.MTLLoader(manager)
 		.setPath(path)
@@ -21,7 +21,22 @@ function loadOBJ(renderer, path, name) {
 			new THREE.OBJLoader(manager)
 				.setMaterials(materials)
 				.setPath(path)
-				.load(name + '.obj', function (object) {
+				.load(name + '.obj', async function (object) {
+                    try {
+                    const images = [];
+                    object.traverse(child => {
+                        if (!child.isMesh) return;
+                        for (const material of (Array.isArray(child.material) ? child.material : [child.material])) {
+                            if (material.map && material.map.image) {
+                                const image = material.map.image;
+                                if (!image.complete) images.push(new Promise((resolve, reject) => {
+                                    image.addEventListener('load', resolve, {once:true});
+                                    image.addEventListener('error', reject, {once:true});
+                                }));
+                            }
+                        }
+                    });
+                    await Promise.all(images);
 					object.traverse(function (child) {
 						if (child.isMesh) {
 							let geo = child.geometry;
@@ -45,6 +60,7 @@ function loadOBJ(renderer, path, name) {
 							renderer.addMesh(meshRender);
 						}
 					});
-				}, onProgress, onError);
+				} catch (error) { window.labLoadError = String(error); console.error(error); }
+                }, onProgress, onError);
 		});
 }
