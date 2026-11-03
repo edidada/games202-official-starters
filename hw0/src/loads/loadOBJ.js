@@ -2,6 +2,7 @@
 function loadOBJ(renderer, path, name) {
 
 	const manager = new THREE.LoadingManager();
+    const assetsReady = new Promise(resolve => { manager.onLoad = resolve; });
 	manager.onProgress = function (item, loaded, total) {
 		console.log(item, loaded, total);
 	};
@@ -23,6 +24,7 @@ function loadOBJ(renderer, path, name) {
 				.setPath(path)
 				.load(name + '.obj', async function (object) {
                     try {
+                    await assetsReady;
                     const images = [];
                     object.traverse(child => {
                         if (!child.isMesh) return;
