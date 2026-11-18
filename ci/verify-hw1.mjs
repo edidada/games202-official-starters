@@ -118,7 +118,7 @@ try{
  try {
   await pkg.waitForFunction(()=>window.labScene?.renderer.meshes.length===5&&labScene.renderer.shadowMeshes.length===5,{},{timeout:120000});
  } catch(error) {
-  await writeFile('evidence/package-state.json',JSON.stringify(await pkg.evaluate(()=>({scene:!!window.labScene,meshes:window.labScene?.renderer.meshes.length,shadows:window.labScene?.renderer.shadowMeshes.length}))),null,2));
+  await writeFile('evidence/package-state.json',JSON.stringify(await pkg.evaluate(()=>({scene:!!window.labScene,meshes:window.labScene?.renderer.meshes.length,shadows:window.labScene?.renderer.shadowMeshes.length})),null,2));
   throw error;
  }
  await pkg.waitForTimeout(2000);
