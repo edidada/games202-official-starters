@@ -91,9 +91,9 @@ try{
  for(const [mode,name]of [[3,'unshadowed'],[0,'SM_scene'],[1,'PCF_scene'],[2,'PCSS_scene']]){
   const frame=await page.evaluate(mode=>{setShadowMode(mode);labScene.renderer.render();const gl=labScene.gl;
    const p=new Uint8Array(gl.drawingBufferWidth*gl.drawingBufferHeight*4);gl.readPixels(0,0,gl.drawingBufferWidth,gl.drawingBufferHeight,gl.RGBA,gl.UNSIGNED_BYTE,p);
-   return {width:gl.drawingBufferWidth,height:gl.drawingBufferHeight,pixels:Array.from(p),error:gl.getError()};},mode);
+   return {width:gl.drawingBufferWidth,height:gl.drawingBufferHeight,pixels:Array.from(p),png:gl.canvas.toDataURL('image/png'),error:gl.getError()};},mode);
   assert.equal(frame.error,0);assert(frame.pixels.filter((v,i)=>i%4!==3&&v>30).length>5000);
-  await page.locator('#glcanvas').screenshot({path:`evidence/${name}.png`});
+  await writeFile(`evidence/${name}.png`,Buffer.from(frame.png.split(',')[1],'base64'));
   await writeFile(`evidence/${name}.rgba`,new Uint8Array(frame.pixels));frames.push(frame);
  }
  const diffs=frames.slice(1).map(f=>f.pixels.filter((v,i)=>i%4!==3&&v<frames[0].pixels[i]-5).length);
