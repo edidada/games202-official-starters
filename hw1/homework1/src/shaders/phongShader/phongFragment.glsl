@@ -1,5 +1,5 @@
 #ifdef GL_ES
-precision mediump float;
+precision highp float;
 #endif
 
 // Phong related variables
@@ -83,29 +83,62 @@ void uniformDiskSamples( const in vec2 randomSeed ) {
   }
 }
 
-float findBlocker( sampler2D shadowMap,  vec2 uv, float zReceiver ) {
-	return 1.0;
+// All lengths below are in the light camera's world-space units.
+#define LIGHT_NEAR 1.0
+#define LIGHT_FAR 300.0
+#define LIGHT_EXTENT 200.0
+#define LIGHT_RADIUS 5.0
+#define DEPTH_BIAS 0.0008
+uniform float uShadowMode;
+
+bool outsideMap(vec3 c) {
+  return c.x < 0.0 || c.x > 1.0 || c.y < 0.0 || c.y > 1.0 || c.z < 0.0 || c.z > 1.0;
 }
-
-float PCF(sampler2D shadowMap, vec4 coords) {
-  return 1.0;
+float compareDepth(sampler2D map, vec2 uv, float depth) {
+  if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) return 1.0;
+  return step(depth - DEPTH_BIAS, unpack(texture2D(map, uv)));
 }
-
-float PCSS(sampler2D shadowMap, vec4 coords){
-
-  // STEP 1: avgblocker depth
-
-  // STEP 2: penumbra size
-
-  // STEP 3: filtering
-  
-  return 1.0;
-
+float findBlocker(sampler2D map, vec2 uv, float receiver) {
+  float sum = 0.0;
+  float count = 0.0;
+  // A finite angular disk around the directional source. Search up to
+  // the near plane; orthographic x/y widths do not divide by receiver z.
+  float z = LIGHT_NEAR + receiver * (LIGHT_FAR - LIGHT_NEAR);
+  float radius = LIGHT_RADIUS * (z - LIGHT_NEAR) / z / LIGHT_EXTENT;
+  for (int i = 0; i < BLOCKER_SEARCH_NUM_SAMPLES; ++i) {
+    vec2 pos = uv + poissonDisk[i] * radius;
+    if (pos.x < 0.0 || pos.x > 1.0 || pos.y < 0.0 || pos.y > 1.0) continue;
+    float depth = unpack(texture2D(map, pos));
+    if (depth < receiver - DEPTH_BIAS) {sum += depth; count += 1.0;}
+  }
+  return count > 0.0 ? sum / count : -1.0;
 }
-
-
-float useShadowMap(sampler2D shadowMap, vec4 shadowCoord){
-  return 1.0;
+float filterShadow(sampler2D map, vec3 c, float radius) {
+  float sum = 0.0;
+  for (int i = 0; i < PCF_NUM_SAMPLES; ++i)
+    sum += compareDepth(map, c.xy + poissonDisk[i] * radius, c.z);
+  return sum / float(PCF_NUM_SAMPLES);
+}
+float PCF(sampler2D map, vec4 coords) {
+  vec3 c = coords.xyz / coords.w;
+  if (outsideMap(c)) return 1.0;
+  poissonDiskSamples(c.xy);
+  return filterShadow(map, c, 4.0 / 2048.0);
+}
+float PCSS(sampler2D map, vec4 coords) {
+  vec3 c = coords.xyz / coords.w;
+  if (outsideMap(c)) return 1.0;
+  poissonDiskSamples(c.xy);
+  float blocker = findBlocker(map, c.xy, c.z);
+  if (blocker < 0.0) return 1.0;
+  float receiverZ = LIGHT_NEAR + c.z * (LIGHT_FAR - LIGHT_NEAR);
+  float blockerZ = LIGHT_NEAR + blocker * (LIGHT_FAR - LIGHT_NEAR);
+  float radius = LIGHT_RADIUS * max(receiverZ - blockerZ, 0.0) / blockerZ / LIGHT_EXTENT;
+  return filterShadow(map, c, radius);
+}
+float useShadowMap(sampler2D map, vec4 coords) {
+  vec3 c = coords.xyz / coords.w;
+  return outsideMap(c) ? 1.0 : compareDepth(map, c.xy, c.z);
 }
 
 vec3 blinnPhong() {
@@ -133,13 +166,10 @@ vec3 blinnPhong() {
 
 void main(void) {
 
-  float visibility;
-  //visibility = useShadowMap(uShadowMap, vec4(shadowCoord, 1.0));
-  //visibility = PCF(uShadowMap, vec4(shadowCoord, 1.0));
-  //visibility = PCSS(uShadowMap, vec4(shadowCoord, 1.0));
-
-  vec3 phongColor = blinnPhong();
-
-  //gl_FragColor = vec4(phongColor * visibility, 1.0);
-  gl_FragColor = vec4(phongColor, 1.0);
+  vec4 coord = vec4(vPositionFromLight.xyz * 0.5 + vPositionFromLight.www * 0.5, vPositionFromLight.w);
+  float visibility = 1.0;
+  if (uShadowMode < 0.5) visibility = useShadowMap(uShadowMap, coord);
+  else if (uShadowMode < 1.5) visibility = PCF(uShadowMap, coord);
+  else if (uShadowMode < 2.5) visibility = PCSS(uShadowMap, coord);
+  gl_FragColor = vec4(blinnPhong() * visibility, 1.0);
 }

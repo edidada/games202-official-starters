@@ -34,8 +34,15 @@ class WebGLRenderer {
             this.lights[l].meshRender.mesh.transform.translate = this.lights[l].entity.lightPos;
             this.lights[l].meshRender.draw(this.camera);
 
+            // Clear each render target once per frame, never between casters.
+            gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+            gl.clearColor(0, 0, 0, 1);
+            gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
             // Shadow pass
             if (this.lights[l].entity.hasShadowMap == true) {
+                gl.bindFramebuffer(gl.FRAMEBUFFER, this.lights[l].entity.fbo);
+                gl.clearColor(1, 1, 1, 1);
+                gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
                 for (let i = 0; i < this.shadowMeshes.length; i++) {
                     this.shadowMeshes[i].draw(this.camera);
                 }

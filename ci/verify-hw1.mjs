@@ -1,0 +1,82 @@
+import {chromium} from 'playwright';
+import {createServer} from 'node:http';
+import {readFile, mkdir, writeFile} from 'node:fs/promises';
+import {resolve, extname} from 'node:path';
+import {execFileSync} from 'node:child_process';
+import assert from 'node:assert/strict';
+const root=resolve('hw1/homework1');
+await mkdir('evidence',{recursive:true});
+await writeFile('evidence/commit.txt',execFileSync('git',['rev-parse','HEAD']));
+const mime={'.js':'text/javascript','.glsl':'text/plain','.html':'text/html','.png':'image/png','.jpg':'image/jpeg','.obj':'text/plain','.mtl':'text/plain'};
+const server=createServer(async(req,res)=>{try{
+ const url=new URL(req.url,'http://localhost');
+ const path=resolve(root,'.'+decodeURIComponent(url.pathname==='/'?'/index.html':url.pathname));
+ if(!path.startsWith(root+'/'))throw Error('path');
+ const data=await readFile(path);res.writeHead(200,{'Content-Type':mime[extname(path)]||'application/octet-stream'});res.end(data);
+}catch{res.writeHead(404);res.end();}});
+await new Promise(r=>server.listen(0,'127.0.0.1',r));
+let browser;const errors=[];
+try{
+ browser=await chromium.launch({args:['--use-angle=swiftshader','--enable-unsafe-swiftshader']});
+ const page=await browser.newPage({viewport:{width:960,height:720},screen:{width:960,height:720}});
+ page.on('pageerror',e=>errors.push(String(e)));
+ page.on('console',m=>{if(m.type()==='error'&&!m.text().includes('404'))errors.push(m.text());});
+ await page.goto(`http://127.0.0.1:${server.address().port}/`,{waitUntil:'networkidle'});
+ await page.waitForFunction(()=>window.labScene?.renderer.meshes.length===5&&labScene.renderer.shadowMeshes.length===5,{},{timeout:60000});
+ await page.waitForTimeout(2000);
+ const source=await readFile(root+'/src/shaders/phongShader/phongFragment.glsl','utf8');
+ const oracle=await page.evaluate(source=>{
+  const canvas=document.createElement('canvas');canvas.width=512;canvas.height=1;
+  const gl=canvas.getContext('webgl',{preserveDrawingBuffer:true});
+  function compile(type,text){const s=gl.createShader(type);gl.shaderSource(s,text);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(s));return s;}
+  const functions=source.slice(0,source.indexOf('vec3 blinnPhong()'));
+  const f=compile(gl.FRAGMENT_SHADER,functions+`uniform float receiver; uniform float mode;
+  void main(){vec4 c=vec4(0.45+gl_FragCoord.x/512.0*0.1,0.5,receiver,1.0);
+  float v=mode<0.5?useShadowMap(uShadowMap,c):(mode<1.5?PCF(uShadowMap,c):PCSS(uShadowMap,c));gl_FragColor=vec4(v,v,v,1.0);}`);
+  const v=compile(gl.VERTEX_SHADER,'attribute vec2 p;void main(){gl_Position=vec4(p,0,1);}');
+  const program=gl.createProgram();gl.attachShader(program,v);gl.attachShader(program,f);gl.linkProgram(program);
+  if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(program));gl.useProgram(program);
+  const buffer=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,3,-1,-1,3]),gl.STATIC_DRAW);
+  const a=gl.getAttribLocation(program,'p');gl.enableVertexAttribArray(a);gl.vertexAttribPointer(a,2,gl.FLOAT,false,0,0);
+  const tex=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,tex);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+  // Independent CPU base-256 encoding: left half at depth .3, right half clear.
+  const data=new Uint8Array(2048*2048*4);
+  const shifts=[1,256,65536,16777216];const fract=x=>x-Math.floor(x);
+  const rgba=shifts.map(x=>fract(.3*x));const packed=rgba.map((x,i)=>Math.round((x-(i<3?rgba[i+1]/256:0))*255));
+  for(let y=0;y<2048;y++)for(let x=0;x<2048;x++)for(let c=0;c<4;c++)data[(y*2048+x)*4+c]=x<1024?packed[c]:255;
+  gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,2048,2048,0,gl.RGBA,gl.UNSIGNED_BYTE,data);
+  const cases=[];
+  for(const mode of [0,1,2])for(const depth of [.2,.4,.6,.9,1.2]){
+   gl.uniform1f(gl.getUniformLocation(program,'receiver'),depth);gl.uniform1f(gl.getUniformLocation(program,'mode'),mode);
+   gl.drawArrays(gl.TRIANGLES,0,3);const pixels=new Uint8Array(512*4);gl.readPixels(0,0,512,1,gl.RGBA,gl.UNSIGNED_BYTE,pixels);
+   const values=Array.from({length:512},(_,i)=>pixels[4*i]);
+   cases.push({mode,depth,partial:values.filter(x=>x>0&&x<255).length,min:Math.min(...values),max:Math.max(...values),values});
+  }
+  return {cases,error:gl.getError(),packed};
+ },source);
+ assert.equal(oracle.error,0);
+ for(const c of oracle.cases){
+  if(c.depth===.2||c.depth===1.2)assert.equal(c.min,255,JSON.stringify(c));
+  else {assert.equal(c.min,0);assert.equal(c.max,255);if(c.mode===0)assert.equal(c.partial,0);else assert(c.partial>0);}
+ }
+ const widths=oracle.cases.filter(c=>c.mode===2&&[.4,.6,.9].includes(c.depth)).map(c=>c.partial);
+ assert(widths[0]<widths[1]&&widths[1]<widths[2],JSON.stringify(widths));
+ await writeFile('evidence/shader-oracle.json',JSON.stringify(oracle,null,2));
+ const frames=[];
+ for(const [mode,name]of [[3,'unshadowed'],[0,'SM_scene'],[1,'PCF_scene'],[2,'PCSS_scene']]){
+  const frame=await page.evaluate(mode=>{setShadowMode(mode);labScene.renderer.render();const gl=labScene.gl;
+   const p=new Uint8Array(gl.drawingBufferWidth*gl.drawingBufferHeight*4);gl.readPixels(0,0,gl.drawingBufferWidth,gl.drawingBufferHeight,gl.RGBA,gl.UNSIGNED_BYTE,p);
+   return {width:gl.drawingBufferWidth,height:gl.drawingBufferHeight,pixels:Array.from(p),error:gl.getError()};},mode);
+  assert.equal(frame.error,0);assert(frame.pixels.filter((v,i)=>i%4!==3&&v>30).length>5000);
+  await page.locator('#glcanvas').screenshot({path:`evidence/${name}.png`});
+  await writeFile(`evidence/${name}.rgba`,new Uint8Array(frame.pixels));frames.push(frame);
+ }
+ const diffs=frames.slice(1).map(f=>f.pixels.filter((v,i)=>i%4!==3&&v<frames[0].pixels[i]-5).length);
+ assert(diffs.every(x=>x>1000),JSON.stringify(diffs));
+ assert.notDeepEqual(frames[1].pixels,frames[2].pixels);assert.notDeepEqual(frames[2].pixels,frames[3].pixels);
+ assert.deepEqual(errors,[]);
+ await writeFile('evidence/results.json',JSON.stringify({browser:browser.version(),shader_cases:oracle.cases.length,pcss_partial_widths:widths,shadow_darker_channels:diffs,meshes:5,errors},null,2));
+ console.log('PASS initial shader oracle and official scene',widths,diffs);
+}finally{await writeFile('evidence/browser-errors.json',JSON.stringify(errors));if(browser)await browser.close();server.close();}

@@ -41,6 +41,11 @@ function GAMES202Main() {
 
 	// Add renderer
 	const renderer = new WebGLRenderer(gl, camera);
+    window.labScene = {gl, renderer, camera};
+    window.setShadowMode = mode => {
+        if (![0, 1, 2, 3].includes(mode)) throw new Error('invalid shadow mode');
+        for (const mesh of renderer.meshes) mesh.material.uniforms.uShadowMode.value = mode;
+    };
 
 	// Add lights
 	// light - is open shadow map == true
@@ -72,6 +77,8 @@ function GAMES202Main() {
 
 	function createGUI() {
 		const gui = new dat.gui.GUI();
+        const controls = {shadow: 2};
+        gui.add(controls, 'shadow', {SM: 0, PCF: 1, PCSS: 2, Unshadowed: 3}).onChange(value => window.setShadowMode(Number(value)));
 		// const panelModel = gui.addFolder('Model properties');
 		// panelModelTrans.add(GUIParams, 'x').name('X');
 		// panelModel.open();
