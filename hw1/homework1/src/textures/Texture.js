@@ -32,6 +32,7 @@ class Texture {
         };
         if (image.complete && image.naturalWidth > 0) upload();
         else image.addEventListener('load', upload, {once: true});
+        gl.bindTexture(gl.TEXTURE_2D, this.texture);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
         gl.bindTexture(gl.TEXTURE_2D, null);
     }
