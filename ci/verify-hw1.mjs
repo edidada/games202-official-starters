@@ -20,6 +20,7 @@ let browser;const errors=[];
 try{
  browser=await chromium.launch({args:['--use-angle=swiftshader','--enable-unsafe-swiftshader']});
  const page=await browser.newPage({viewport:{width:960,height:720},screen:{width:960,height:720}});
+ await page.addInitScript(()=>{window.labManualRender=true;});
  page.on('pageerror',e=>errors.push(String(e)));
  page.on('console',m=>{if(m.type()==='error'&&!m.text().includes('404'))errors.push(m.text());});
  await page.goto(`http://127.0.0.1:${server.address().port}/`,{waitUntil:'networkidle'});
@@ -113,6 +114,7 @@ try{
  await page.close();
  root=extracted;
  const pkg=await browser.newPage({viewport:{width:960,height:720},screen:{width:960,height:720}});
+ await pkg.addInitScript(()=>{window.labManualRender=true;});
  pkg.on('pageerror',e=>errors.push(String(e)));
  await pkg.goto(`http://127.0.0.1:${server.address().port}/`,{waitUntil:'networkidle'});
  try {

@@ -88,7 +88,7 @@ function GAMES202Main() {
 	function mainLoop(now) {
 		cameraControls.update();
 
-		renderer.render();
+		if (!window.labManualRender) renderer.render();
 		requestAnimationFrame(mainLoop);
 	}
 	requestAnimationFrame(mainLoop);
