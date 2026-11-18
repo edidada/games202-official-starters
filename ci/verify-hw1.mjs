@@ -1,10 +1,11 @@
 import {chromium} from 'playwright';
 import {createServer} from 'node:http';
-import {readFile, mkdir, writeFile} from 'node:fs/promises';
+import {readFile, mkdir, writeFile, cp, mkdtemp} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
 import {resolve, extname} from 'node:path';
 import {execFileSync} from 'node:child_process';
 import assert from 'node:assert/strict';
-const root=resolve('hw1/homework1');
+let root=resolve('hw1/homework1');
 await mkdir('evidence',{recursive:true});
 await writeFile('evidence/commit.txt',execFileSync('git',['rev-parse','HEAD']));
 const mime={'.js':'text/javascript','.glsl':'text/plain','.html':'text/html','.png':'image/png','.jpg':'image/jpeg','.obj':'text/plain','.mtl':'text/plain'};
@@ -99,6 +100,28 @@ try{
  assert(diffs.every(x=>x>1000),JSON.stringify(diffs));
  assert.notDeepEqual(frames[1].pixels,frames[2].pixels);assert.notDeepEqual(frames[2].pixels,frames[3].pixels);
  assert.deepEqual(errors,[]);
+ await mkdir(root+'/images',{recursive:true});
+ for(const name of ['SM_scene','PCF_scene','PCSS_scene'])await cp(`evidence/${name}.png`,root+`/images/${name}.png`);
+ const zip=resolve('evidence/edidada_Homework1.zip');
+ execFileSync('zip',['-qr',zip,'.','-x','lib/*','assets/*','*.pdf'],{cwd:root});
+ const extracted=await mkdtemp(resolve(tmpdir(),'games202-hw1-'));
+ execFileSync('unzip',['-q',zip,'-d',extracted]);
+ // Submission intentionally excludes official lib/assets as required. Restore
+ // only those original inputs; all application code comes from the ZIP.
+ await cp(root+'/lib',extracted+'/lib',{recursive:true});
+ await cp(root+'/assets',extracted+'/assets',{recursive:true});
+ root=extracted;
+ const pkg=await browser.newPage({viewport:{width:960,height:720},screen:{width:960,height:720}});
+ pkg.on('pageerror',e=>errors.push(String(e)));
+ await pkg.goto(`http://127.0.0.1:${server.address().port}/`,{waitUntil:'networkidle'});
+ await pkg.waitForFunction(()=>window.labScene?.renderer.meshes.length===5&&labScene.renderer.shadowMeshes.length===5,{},{timeout:60000});
+ await pkg.waitForTimeout(2000);
+ for(let mode=0;mode<4;mode++){
+  const pixels=await pkg.evaluate(mode=>{setShadowMode(mode);labScene.renderer.render();const gl=labScene.gl,p=new Uint8Array(gl.drawingBufferWidth*gl.drawingBufferHeight*4);gl.readPixels(0,0,gl.drawingBufferWidth,gl.drawingBufferHeight,gl.RGBA,gl.UNSIGNED_BYTE,p);return Array.from(p);},mode);
+  const index=mode===3?0:mode+1;
+  assert.deepEqual(pixels,frames[index].pixels,'fresh ZIP frame mode '+mode);
+ }
+ await writeFile('evidence/package.result','PASS: ZIP excludes lib/assets/PDF, restored original inputs, four complete RGBA frames byte-identical.\n');
  await writeFile('evidence/results.json',JSON.stringify({browser:browser.version(),matrixChecks,shader_cases:oracle.cases.length,pcss_partial_widths:widths,shadow_darker_channels:diffs,meshes:5,errors},null,2));
  console.log('PASS initial shader oracle and official scene',widths,diffs);
 }finally{await writeFile('evidence/browser-errors.json',JSON.stringify(errors));if(browser)await browser.close();server.close();}
