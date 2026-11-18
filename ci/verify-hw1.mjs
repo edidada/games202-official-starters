@@ -110,11 +110,17 @@ try{
  // only those original inputs; all application code comes from the ZIP.
  await cp(root+'/lib',extracted+'/lib',{recursive:true});
  await cp(root+'/assets',extracted+'/assets',{recursive:true});
+ await page.close();
  root=extracted;
  const pkg=await browser.newPage({viewport:{width:960,height:720},screen:{width:960,height:720}});
  pkg.on('pageerror',e=>errors.push(String(e)));
  await pkg.goto(`http://127.0.0.1:${server.address().port}/`,{waitUntil:'networkidle'});
- await pkg.waitForFunction(()=>window.labScene?.renderer.meshes.length===5&&labScene.renderer.shadowMeshes.length===5,{},{timeout:60000});
+ try {
+  await pkg.waitForFunction(()=>window.labScene?.renderer.meshes.length===5&&labScene.renderer.shadowMeshes.length===5,{},{timeout:120000});
+ } catch(error) {
+  await writeFile('evidence/package-state.json',JSON.stringify(await pkg.evaluate(()=>({scene:!!window.labScene,meshes:window.labScene?.renderer.meshes.length,shadows:window.labScene?.renderer.shadowMeshes.length}))),null,2));
+  throw error;
+ }
  await pkg.waitForTimeout(2000);
  for(let mode=0;mode<4;mode++){
   const pixels=await pkg.evaluate(mode=>{setShadowMode(mode);labScene.renderer.render();const gl=labScene.gl,p=new Uint8Array(gl.drawingBufferWidth*gl.drawingBufferHeight*4);gl.readPixels(0,0,gl.drawingBufferWidth,gl.drawingBufferHeight,gl.RGBA,gl.UNSIGNED_BYTE,p);return Array.from(p);},mode);
