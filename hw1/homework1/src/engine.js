@@ -4,9 +4,9 @@ var cameraPosition = [100, 90, 130]
 var resolution = 2048;
 var fbo;
 
-GAMES202Main();
+GAMES202Main().catch(error => {window.labLoadError = String(error); console.error(error);});
 
-function GAMES202Main() {
+async function GAMES202Main() {
 	// Init canvas and gl
 	const canvas = document.querySelector('#glcanvas');
 	canvas.width = window.screen.width;
@@ -61,9 +61,9 @@ function GAMES202Main() {
 	let obj1Transform = setTransform(0, 0, 0, 20, 20, 20);
 	let obj2Transform = setTransform(40, 0, -40, 10, 10, 10);
 
-	loadOBJ(renderer, 'assets/mary/', 'Marry', 'PhongMaterial', obj1Transform);
-	loadOBJ(renderer, 'assets/mary/', 'Marry', 'PhongMaterial', obj2Transform);
-	loadOBJ(renderer, 'assets/floor/', 'floor', 'PhongMaterial', floorTransform);
+	await loadOBJ(renderer, 'assets/mary/', 'Marry', 'PhongMaterial', obj1Transform);
+	await loadOBJ(renderer, 'assets/mary/', 'Marry', 'PhongMaterial', obj2Transform);
+	await loadOBJ(renderer, 'assets/floor/', 'floor', 'PhongMaterial', floorTransform);
 	
 
 	// let floorTransform = setTransform(0, 0, 0, 100, 100, 100);

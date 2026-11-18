@@ -24,7 +24,8 @@ try{
  page.on('pageerror',e=>errors.push(String(e)));
  page.on('console',m=>{if(m.type()==='error'&&!m.text().includes('404'))errors.push(m.text());});
  await page.goto(`http://127.0.0.1:${server.address().port}/`,{waitUntil:'networkidle'});
- await page.waitForFunction(()=>window.labScene?.renderer.meshes.length===5&&labScene.renderer.shadowMeshes.length===5,{},{timeout:60000});
+ await page.waitForFunction(()=>window.labLoadError || (window.labScene?.renderer.meshes.length===5&&labScene.renderer.shadowMeshes.length===5),{},{timeout:60000});
+ assert.equal(await page.evaluate(()=>window.labLoadError||null),null);
  await page.waitForTimeout(2000);
  const matrixChecks=await page.evaluate(()=>{
   const dot=(a,b)=>a.reduce((s,x,i)=>s+x*b[i],0), sub=(a,b)=>a.map((x,i)=>x-b[i]);
@@ -118,11 +119,12 @@ try{
  pkg.on('pageerror',e=>errors.push(String(e)));
  await pkg.goto(`http://127.0.0.1:${server.address().port}/`,{waitUntil:'networkidle'});
  try {
-  await pkg.waitForFunction(()=>window.labScene?.renderer.meshes.length===5&&labScene.renderer.shadowMeshes.length===5,{},{timeout:120000});
+  await pkg.waitForFunction(()=>window.labLoadError || (window.labScene?.renderer.meshes.length===5&&labScene.renderer.shadowMeshes.length===5),{},{timeout:120000});
  } catch(error) {
   await writeFile('evidence/package-state.json',JSON.stringify(await pkg.evaluate(()=>({scene:!!window.labScene,meshes:window.labScene?.renderer.meshes.length,shadows:window.labScene?.renderer.shadowMeshes.length})),null,2));
   throw error;
  }
+ assert.equal(await pkg.evaluate(()=>window.labLoadError||null),null);
  await pkg.waitForTimeout(2000);
  for(let mode=0;mode<4;mode++){
   const pixels=await pkg.evaluate(mode=>{setShadowMode(mode);labScene.renderer.render();const gl=labScene.gl,p=new Uint8Array(gl.drawingBufferWidth*gl.drawingBufferHeight*4);gl.readPixels(0,0,gl.drawingBufferWidth,gl.drawingBufferHeight,gl.RGBA,gl.UNSIGNED_BYTE,p);return Array.from(p);},mode);
