@@ -24,6 +24,28 @@ try{
  await page.goto(`http://127.0.0.1:${server.address().port}/`,{waitUntil:'networkidle'});
  await page.waitForFunction(()=>window.labScene?.renderer.meshes.length===5&&labScene.renderer.shadowMeshes.length===5,{},{timeout:60000});
  await page.waitForTimeout(2000);
+ const matrixChecks=await page.evaluate(()=>{
+  const dot=(a,b)=>a.reduce((s,x,i)=>s+x*b[i],0), sub=(a,b)=>a.map((x,i)=>x-b[i]);
+  const norm=a=>a.map(x=>x/Math.hypot(...a));
+  const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
+  let maxError=0;
+  for(let i=0;i<100;i++){
+   const light={lightPos:[12+i*.2,80,80],focalPoint:[1,2,-3],lightUp:[0,1,0]};
+   const t=[i*.1,-2,3],scale=[1+i*.01,2,3],point=[.2,-.3,.7];
+   const m=DirectionalLight.prototype.CalcLightMVP.call(light,t,scale);
+   const world=point.map((x,j)=>x*scale[j]+t[j]);
+   const z=norm(sub(light.lightPos,light.focalPoint)),x=norm(cross(light.lightUp,z)),y=cross(z,x);
+   const rel=sub(world,light.lightPos),view=[dot(x,rel),dot(y,rel),dot(z,rel)];
+   const expected=[view[0]/100,view[1]/100,-2*view[2]/299-301/299,1];
+   for(let row=0;row<4;row++){
+    const actual=m[row]*point[0]+m[row+4]*point[1]+m[row+8]*point[2]+m[row+12];
+    maxError=Math.max(maxError,Math.abs(actual-expected[row]));
+   }
+  }
+  return {cases:100,maxError};
+ });
+ assert(matrixChecks.maxError<1e-6,JSON.stringify(matrixChecks));
+ await writeFile('evidence/matrix-checks.json',JSON.stringify(matrixChecks,null,2));
  const source=await readFile(root+'/src/shaders/phongShader/phongFragment.glsl','utf8');
  const oracle=await page.evaluate(source=>{
   const canvas=document.createElement('canvas');canvas.width=512;canvas.height=1;
@@ -77,6 +99,6 @@ try{
  assert(diffs.every(x=>x>1000),JSON.stringify(diffs));
  assert.notDeepEqual(frames[1].pixels,frames[2].pixels);assert.notDeepEqual(frames[2].pixels,frames[3].pixels);
  assert.deepEqual(errors,[]);
- await writeFile('evidence/results.json',JSON.stringify({browser:browser.version(),shader_cases:oracle.cases.length,pcss_partial_widths:widths,shadow_darker_channels:diffs,meshes:5,errors},null,2));
+ await writeFile('evidence/results.json',JSON.stringify({browser:browser.version(),matrixChecks,shader_cases:oracle.cases.length,pcss_partial_widths:widths,shadow_darker_channels:diffs,meshes:5,errors},null,2));
  console.log('PASS initial shader oracle and official scene',widths,diffs);
 }finally{await writeFile('evidence/browser-errors.json',JSON.stringify(errors));if(browser)await browser.close();server.close();}
