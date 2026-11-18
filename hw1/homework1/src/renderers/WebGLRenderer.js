@@ -32,7 +32,6 @@ class WebGLRenderer {
             // Draw light
             // TODO: Support all kinds of transform
             this.lights[l].meshRender.mesh.transform.translate = this.lights[l].entity.lightPos;
-            this.lights[l].meshRender.draw(this.camera);
 
             // Clear each render target once per frame, never between casters.
             gl.bindFramebuffer(gl.FRAMEBUFFER, null);
@@ -47,6 +46,8 @@ class WebGLRenderer {
                     this.shadowMeshes[i].draw(this.camera);
                 }
             }
+
+            this.lights[l].meshRender.draw(this.camera);
 
             // Camera pass
             for (let i = 0; i < this.meshes.length; i++) {
