@@ -34,6 +34,7 @@
 using namespace nori;
 
 static int threadCount = -1;
+static bool precomputeOnly = false;
 
 static void renderBlock(const Scene *scene, Sampler *sampler, ImageBlock &block)
 {
@@ -170,6 +171,7 @@ int main(int argc, char **argv)
     for (int i = 1; i < argc; ++i)
     {
         std::string token(argv[i]);
+        if (token == "--precompute") {precomputeOnly = true; continue;}
         if (token == "-t" || token == "--threads")
         {
             if (i + 1 >= argc)
@@ -238,12 +240,16 @@ int main(int argc, char **argv)
         {
             std::unique_ptr<NoriObject> root(loadFromXML(sceneName));
             /* When the XML root object is a scene, start rendering it .. */
-            if (root->getClassType() == NoriObject::EScene)
-                render(static_cast<Scene *>(root.get()), sceneName);
+            if (root->getClassType() == NoriObject::EScene) {
+                auto scene = static_cast<Scene *>(root.get());
+                if (precomputeOnly) scene->getIntegrator()->preprocess(scene);
+                else render(scene, sceneName);
+            }
         }
         catch (const std::exception &e)
         {
             std::cerr << e.what() << std::endl;
+            return 1;
         }
     }
 
