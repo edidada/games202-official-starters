@@ -45,6 +45,7 @@ class WebGLRenderer {
 
         // Shadow pass
         gl.bindFramebuffer(gl.FRAMEBUFFER, light.entity.fbo);
+        gl.clearColor(1000.0,1000.0,1000.0,1.0);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
         for (let i = 0; i < this.shadowMeshes.length; i++) {
             this.shadowMeshes[i].draw(this.camera, light.entity.fbo, updatedParamters);
@@ -54,6 +55,7 @@ class WebGLRenderer {
 
         // Buffer pass
         gl.bindFramebuffer(gl.FRAMEBUFFER, this.camera.fbo);
+        gl.clearColor(0.0,0.0,0.0,1.0);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
         for (let i = 0; i < this.bufferMeshes.length; i++) {
             this.bufferMeshes[i].draw(this.camera, this.camera.fbo, updatedParamters);

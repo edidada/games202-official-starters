@@ -175,7 +175,7 @@ bool RayMarch(vec3 ori, vec3 dir, out vec3 hitPos) {
   return false;
 }
 
-#define SAMPLE_NUM 4
+#define SAMPLE_NUM 16
 uniform float uRenderMode;
 vec3 DirectAt(vec2 uv, vec3 outgoing) {
   vec3 n = normalize(GetGBufferNormalWorld(uv));

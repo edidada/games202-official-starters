@@ -15,7 +15,9 @@ varying highp float vDepth;
 
 float SimpleShadowMap(vec3 posWorld,float bias){
   vec4 posLight = vWorldToLight * vec4(posWorld, 1.0);
-  vec2 shadowCoord = clamp(posLight.xy * 0.5 + 0.5, vec2(0.0), vec2(1.0));
+  posLight /= posLight.w;
+  vec2 shadowCoord = posLight.xy * 0.5 + 0.5;
+  if(any(lessThan(shadowCoord,vec2(0.0))) || any(greaterThan(shadowCoord,vec2(1.0))) || abs(posLight.z)>1.0) return 1.0;
   float depthSM = texture2D(uShadowMap, shadowCoord).x;
   float depth = (posLight.z * 0.5 + 0.5) * 100.0;
   return step(0.0, depthSM - depth + bias);
@@ -34,7 +36,7 @@ void LocalBasis(vec3 n, out vec3 b1, out vec3 b2) {
 
 vec3 ApplyTangentNormalMap() {
   vec3 t, b;
-  LocalBasis(vNormalWorld, t, b);
+  LocalBasis(normalize(vNormalWorld), t, b);
   vec3 nt = texture2D(uNt, vTextureCoord).xyz * 2.0 - 1.0;
   nt = normalize(nt.x * t + nt.y * b + nt.z * vNormalWorld);
   return nt;
