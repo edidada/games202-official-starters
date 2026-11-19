@@ -15,7 +15,7 @@ try{
  await page.addInitScript(()=>{window.labManualRender=true;});
  page.on('pageerror',e=>errors.push(String(e)));page.on('console',m=>{if(m.type()==='error'&&!m.text().includes('404'))errors.push(m.text());});
  await page.goto(`http://127.0.0.1:${server.address().port}/`,{waitUntil:'networkidle'});
- await page.waitForFunction(()=>window.labLoadError || (window.labScene&&labScene.renderer.meshes.length===33),{},{timeout:60000});
+ await page.waitForFunction(()=>window.labLoadError || (window.labScene&&labScene.renderer.meshes.length===41),{},{timeout:60000});
  assert.equal(await page.evaluate(()=>window.labLoadError||null),null);
  const frames=[];
  for(const [enabled,name]of [[0,'single-scattering'],[1,'kulla-conty']]){
@@ -27,7 +27,7 @@ try{
  assert(brighter>200,'No material compensation effect');assert.equal(darker,0);
  const groups=await page.evaluate(()=>{
   const {renderer,gl}=labScene,all=renderer.meshes,groups=[];
-  for(const roughness of [.35,.55,.75,.95]){
+  for(const roughness of [.15,.35,.55,.75,.95]){
    renderer.meshes=all.filter(m=>m.material instanceof KullaContyMaterial&&Math.abs(m.material.uniforms.uRoughness.value-roughness)<1e-6);
    if(renderer.meshes.length!==4)throw Error('Expected four shading-ball submeshes');
    const originals=renderer.meshes.map(m=>m.mesh.transform.translate);
@@ -41,6 +41,6 @@ try{
  });
  await writeFile('evidence/roughness-groups.json',JSON.stringify(groups,null,2));
  for(const g of groups)assert(g.compensated_mean>g.single_mean,'No compensation '+JSON.stringify(g));
- assert(groups[3].ratio>groups[0].ratio,'High roughness compensation should be stronger');
- assert.deepEqual(errors,[]);await writeFile('evidence/webgl-results.json',JSON.stringify({browser:browser.version(),meshes:33,brighter_channels:brighter,darker_channels:darker,groups,errors},null,2));console.log('PASS initial Kulla-Conty scene and compensation comparison',groups);
+ assert(groups[4].ratio>groups[0].ratio,'High roughness compensation should be stronger');
+ assert.deepEqual(errors,[]);await writeFile('evidence/webgl-results.json',JSON.stringify({browser:browser.version(),meshes:41,brighter_channels:brighter,darker_channels:darker,groups,errors},null,2));console.log('PASS initial Kulla-Conty scene and compensation comparison',groups);
 }finally{await writeFile('evidence/browser-errors.json',JSON.stringify(errors));if(browser)await browser.close();server.close();}

@@ -21,7 +21,7 @@ double reference(double mu,double rough,double f0=1){
 }
 int main(){try{
  std::cout<<std::setprecision(12);double worst=0;
- for(double rough:{.5,.8,1.0})for(double mu:{.2,.5,.9}){
+ for(double rough:{.15,.5,.8,1.0})for(double mu:{.2,.5,.9}){
   const double ref=reference(mu,rough);const auto is=integrate(mu,rough,65536,true),mc=integrate(mu,rough,65536,false);
   require(std::abs(is.energy-ref)<.015,"GGX estimator quadrature mismatch");require(std::abs(mc.energy-ref)<.015,"cosine estimator quadrature mismatch");
   require(std::abs(is.A+is.B-is.energy)<1e-12,"split sum partition");
@@ -40,5 +40,5 @@ int main(){try{
  }
  require(F(.04,0)==1&&F(.04,1)==.04,"Fresnel endpoints");
  int invalid=0;for(auto p:std::array<std::array<double,3>,4>{{{0,.5,16},{1,0,16},{1,.5,0},{1,2,16}}})try{integrate(p[0],p[1],int(p[2]),true);}catch(const std::invalid_argument &){invalid++;}
- require(invalid==4,"invalid parameters accepted");std::cout<<"PASS 9 energy/colored quadratures, 3 NDF integrals, 3 white furnaces, reciprocity/Fresnel/limits; worst_IS="<<worst<<std::endl;return 0;
+ require(invalid==4,"invalid parameters accepted");std::cout<<"PASS 12 energy/colored quadratures, 3 NDF integrals, 3 white furnaces, reciprocity/Fresnel/limits; worst_IS="<<worst<<std::endl;return 0;
  }catch(const std::exception &e){std::cerr<<e.what()<<std::endl;return 1;}}
