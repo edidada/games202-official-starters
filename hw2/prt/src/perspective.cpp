@@ -50,6 +50,8 @@ public:
         m_rfilter = NULL;
     }
 
+    ~PerspectiveCamera() override {delete m_rfilter;}
+
     void activate() {
         float aspect = m_outputSize.x() / (float) m_outputSize.y();
 

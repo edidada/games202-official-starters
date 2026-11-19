@@ -22,6 +22,7 @@
 #include <nori/sampler.h>
 #include <nori/camera.h>
 #include <nori/emitter.h>
+#include <nori/mesh.h>
 
 NORI_NAMESPACE_BEGIN
 
@@ -31,6 +32,7 @@ Scene::Scene(const PropertyList &) {
 
 Scene::~Scene() {
     delete m_accel;
+    for (Mesh *mesh : m_meshes) delete mesh;
     delete m_sampler;
     delete m_camera;
     delete m_integrator;

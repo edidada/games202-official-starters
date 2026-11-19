@@ -104,4 +104,18 @@ assert max(errors)<.01,(u,t,integrals,errors)
 (root/'transport-oracle.json').write_text(json.dumps(checks,indent=2))
 print('PASS analytic clamped-cosine SH and nonnegative visibility attenuation',checks)
 PY
+cmake -S hw2/prt -B hw2/prt/build-sanitized -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DHW2_SANITIZE=ON 2>&1 | tee evidence/configure-sanitized.log
+cmake --build hw2/prt/build-sanitized --target nori -j2 2>&1 | tee evidence/build-sanitized.log
+export ASAN_OPTIONS=detect_leaks=1:halt_on_error=1
+export UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1
+hw2/prt/build-sanitized/nori --prt-selftest 2>&1 | tee evidence/environment-oracle-sanitized.log
+for scene in Indoor-shadowed visibility-unshadowed visibility-shadowed; do
+  timeout 240 hw2/prt/build-sanitized/nori --precompute "hw2/prt/scenes/$scene.xml" 2>&1 | tee "evidence/$scene-sanitized.log"
+  if [[ "$scene" == Indoor-shadowed ]]; then
+    cmp hw2/prt/scenes/cubemap/Indoor/transport.txt evidence/Indoor-shadowed-transport.txt
+  else
+    cmp hw2/prt/scenes/cubemap/Indoor/transport.txt "evidence/$scene-transport.txt"
+  fi
+done
+printf '%s\n' 'PASS: Nori ASan/UBSan/leak detection, environment and three scene outputs exact.' > evidence/sanitized.result
 node ci/verify-hw2-webgl.mjs
