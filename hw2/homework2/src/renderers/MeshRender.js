@@ -50,7 +50,7 @@ class MeshRender {
 	bindGeometryInfo() {
 		const gl = this.gl;
 
-		if (this.mesh.hasVertices) {
+		if (this.mesh.hasVertices && this.shader.program.attribs[this.mesh.verticesName] >= 0) {
 			const numComponents = 3;
 			const type = gl.FLOAT;
 			const normalize = false;
@@ -69,7 +69,7 @@ class MeshRender {
 				this.shader.program.attribs[this.mesh.verticesName]);
 		}
 
-		if (this.mesh.hasNormals) {
+		if (this.mesh.hasNormals && this.shader.program.attribs[this.mesh.normalsName] >= 0) {
 			const numComponents = 3;
 			const type = gl.FLOAT;
 			const normalize = false;
@@ -87,7 +87,7 @@ class MeshRender {
 				this.shader.program.attribs[this.mesh.normalsName]);
 		}
 
-		if (this.mesh.hasTexcoords) {
+		if (this.mesh.hasTexcoords && this.shader.program.attribs[this.mesh.texcoordsName] >= 0) {
 			const numComponents = 2;
 			const type = gl.FLOAT;
 			const normalize = false;
@@ -200,15 +200,24 @@ class MeshRender {
 
 		gl.useProgram(this.shader.program.glShaderProgram);
 		
-		// Bind attribute mat3 - LT
-		const buf = gl.createBuffer();
-		gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-		gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(precomputeLT[guiParams.envmapId]), gl.STATIC_DRAW);
-	
-		for (var ii = 0; ii < 3; ++ii) {
-			gl.enableVertexAttribArray(this.shader.program.attribs['aPrecomputeLT'] + ii);
-			gl.vertexAttribPointer(this.shader.program.attribs['aPrecomputeLT'] + ii, 3, gl.FLOAT, false, 36, ii * 12);
-		}
+        // Each PRT mesh owns one buffer per environment, reused across frames.
+        const location=this.shader.program.attribs.aPrecomputeLT;
+        if (location !== undefined && location >= 0) {
+            this.transportBuffers ||= new Map();
+            const key=Number(guiParams.envmapId);
+            if (!this.transportBuffers.has(key)) {
+                const data=precomputeLT[key];
+                if (!data || data.length !== this.mesh.count*9) throw new Error('Transport/mesh vertex count mismatch');
+                const buffer=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buffer);
+                gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(data),gl.STATIC_DRAW);
+                this.transportBuffers.set(key,buffer);
+            }
+            gl.bindBuffer(gl.ARRAY_BUFFER,this.transportBuffers.get(key));
+            for(let column=0;column<3;column++) {
+                gl.enableVertexAttribArray(location+column);
+                gl.vertexAttribPointer(location+column,3,gl.FLOAT,false,36,column*12);
+            }
+        }
 
 		// Bind geometry information
 		this.bindGeometryInfo();

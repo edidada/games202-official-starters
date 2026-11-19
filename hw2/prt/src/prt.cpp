@@ -298,7 +298,7 @@ public:
         //       we use it to visualize the normals of model for debug.
         // TODO: 在完成了球谐系数计算后，你需要删除下列四行，这四行代码的作用是用来可视化模型法线
 
-        return c;
+        return c * INV_PI;
     }
 
     std::string toString() const

@@ -19,7 +19,7 @@ var resolution = 2048;
 
 let envMapPass = null;
 
-GAMES202Main();
+GAMES202Main().catch(error => {window.labLoadError=String(error);console.error(error);});
 
 async function GAMES202Main() {
 	// Init canvas and gl
@@ -84,38 +84,23 @@ async function GAMES202Main() {
 	// load skybox
 	loadOBJ(renderer, 'assets/testObj/', 'testObj', 'SkyBoxMaterial', skyBoxTransform);
 
-	// file parsing
-	// for (let i = 0; i < envmap.length; i++) {
 
-	// 	let val = '';
-	// 	await this.loadShaderFile(envmap[i] + "/transport.txt").then(result => {
-	// 		val = result;
-	// 	});
-
-	// 	let preArray = val.split(/[(\r\n)\r\n' ']+/);
-	// 	let lineArray = [];
-	// 	precomputeLT[i] = []
-	// 	for (let j = 1; j <= Number(preArray.length) - 2; j++) {
-	// 		precomputeLT[i][j - 1] = Number(preArray[j])
-	// 	}
-	// 	await this.loadShaderFile(envmap[i] + "/light.txt").then(result => {
-	// 		val = result;
-	// 	});
-
-	// 	precomputeL[i] = val.split(/[(\r\n)\r\n]+/);
-	// 	precomputeL[i].pop();
-	// 	for (let j = 0; j < 9; j++) {
-	// 		lineArray = precomputeL[i][j].split(' ');
-	// 		for (let k = 0; k < 3; k++) {
-	// 			lineArray[k] = Number(lineArray[k]);
-	// 		}
-	// 		precomputeL[i][j] = lineArray;
-	// 	}
-	// }
-
-	// TODO: load model - Add your Material here
-	// loadOBJ(renderer, 'assets/bunny/', 'bunny', 'addYourPRTMaterial', boxTransform);
-	// loadOBJ(renderer, 'assets/bunny/', 'bunny', 'addYourPRTMaterial', box2Transform);
+    for (let i=0;i<envmap.length;i++) {
+        const read=async file=>{
+            const response=await fetch(envmap[i]+'/'+file);
+            if(!response.ok)throw new Error(file+': HTTP '+response.status);
+            const values=(await response.text()).trim().split(/\s+/).map(Number);
+            if(values.some(x=>!Number.isFinite(x)))throw new Error('Invalid coefficients: '+file);
+            return values;
+        };
+        const [light, transport]=await Promise.all([read('light.txt'),read('transport.txt')]);
+        if(light.length!==27 || transport.length<10 || (transport.length-1)%9!==0)
+            throw new Error('Invalid SH coefficient dimensions');
+        precomputeL[i]=Array.from({length:9},(_,j)=>light.slice(j*3,j*3+3));
+        precomputeLT[i]=transport.slice(1);
+    }
+    loadOBJ(renderer, 'assets/bunny/', 'bunny', 'PRTMaterial', boxTransform);
+    window.labScene={gl,renderer,camera};
 
 	function createGUI() {
 		const gui = new dat.gui.GUI();
