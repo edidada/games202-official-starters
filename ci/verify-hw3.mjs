@@ -1,10 +1,13 @@
 import {chromium} from 'playwright';
 import {createServer} from 'node:http';
-import {mkdir,readFile,writeFile} from 'node:fs/promises';
-import {resolve,extname} from 'node:path';
+import {mkdir,readFile,writeFile,readdir,mkdtemp,cp} from 'node:fs/promises';
+import {resolve,extname,dirname} from 'node:path';
 import {execFileSync} from 'node:child_process';
 import assert from 'node:assert/strict';
-const root=resolve('hw3'),errors=[],records=[];
+import {tmpdir} from 'node:os';
+import {zipSync,unzipSync} from 'fflate';
+let root=resolve('hw3');
+const errors=[],records=[],referenceFrames=new Map();
 await mkdir('evidence',{recursive:true});await writeFile('evidence/commit.txt',execFileSync('git',['-c',`safe.directory=${process.cwd()}`,'rev-parse','HEAD']));
 const mime={'.html':'text/html','.js':'text/javascript','.glsl':'text/plain','.png':'image/png','.jpg':'image/jpeg','.gltf':'model/gltf+json','.bin':'application/octet-stream'};
 const server=createServer(async(req,res)=>{try{
@@ -28,6 +31,7 @@ try{
    const frame=await page.evaluate(mode=>{setRenderMode(mode);labScene.renderer.render();const gl=labScene.gl;
     const pixels=new Uint8Array(gl.drawingBufferWidth*gl.drawingBufferHeight*4);gl.readPixels(0,0,gl.drawingBufferWidth,gl.drawingBufferHeight,gl.RGBA,gl.UNSIGNED_BYTE,pixels);
     return {pixels:Array.from(pixels),png:gl.canvas.toDataURL('image/png'),error:gl.getError(),meshes:labScene.renderer.meshes.length};},mode);
+   referenceFrames.set(`${scene}-${name}`,new Uint8Array(frame.pixels));
    await writeFile(`evidence/${scene}-${name}.png`,Buffer.from(frame.png.split(',')[1],'base64'));
    await writeFile(`evidence/${scene}-${name}.rgba`,new Uint8Array(frame.pixels));
    assert.equal(frame.error,0,scene+' '+name);
@@ -82,6 +86,34 @@ try{
  for(const c of oracle.directCases)for(let channel=0;channel<3;channel++){const expected=c.lightZ>0&&c.outZ>0?Math.round([.5,.25,.75][channel]**2.2/Math.PI*[2,3,4][channel]*c.visibility*255):0;assert(Math.abs(c.pixel[channel]-expected)<=2,JSON.stringify({c,channel,expected}));}
  await writeFile('evidence/raymarch-oracle.json',JSON.stringify(oracle,null,2));
  await oraclePage.close();
+ const files={};
+ async function collect(folder,prefix=''){
+  for(const entry of await readdir(folder,{withFileTypes:true})){
+   if(['lib','assets','images','__MACOSX','.DS_Store'].includes(entry.name)||entry.name.endsWith('.pdf'))continue;
+   const name=prefix+entry.name;
+   if(entry.isDirectory())await collect(folder+'/'+entry.name,name+'/');
+   else files[name]=new Uint8Array(await readFile(folder+'/'+entry.name));
+  }
+ }
+ await collect(root);
+ for(const scene of ['cube1','cube2','cave'])for(const mode of ['direct','combined','indirect','mirror'])files[`images/${scene}-${mode}.png`]=new Uint8Array(await readFile(`evidence/${scene}-${mode}.png`));
+ const zip=zipSync(files,{level:6});await writeFile('evidence/edidada_Homework3.zip',zip);
+ const original=root;root=await mkdtemp(resolve(tmpdir(),'games202-hw3-'));
+ for(const [name,data] of Object.entries(unzipSync(zip))){const path=resolve(root,name);assert(path.startsWith(root+'/'));await mkdir(dirname(path),{recursive:true});await writeFile(path,data);}
+ await cp(original+'/lib',root+'/lib',{recursive:true});await cp(original+'/assets',root+'/assets',{recursive:true});
+ for(const scene of ['cube1','cube2','cave']){
+  const page=await browser.newPage({viewport:{width:320,height:240},screen:{width:320,height:240}});
+  await page.addInitScript(()=>{window.labManualRender=true;});page.on('pageerror',e=>errors.push(String(e)));
+  await page.goto(`http://127.0.0.1:${server.address().port}/?scene=${scene}`,{waitUntil:'networkidle'});
+  await page.waitForFunction(()=>window.labLoadError || (window.labScene&&window.labExpectedMeshes>0&&labScene.renderer.meshes.length===labExpectedMeshes&&labScene.renderer.shadowMeshes.length===labExpectedMeshes&&labScene.renderer.bufferMeshes.length===labExpectedMeshes),{},{timeout:60000});
+  assert.equal(await page.evaluate(()=>window.labLoadError||null),null);
+  for(const [mode,name] of [[0,'direct'],[1,'combined'],[2,'indirect'],[3,'mirror']]){
+   const pixels=await page.evaluate(mode=>{setRenderMode(mode);labScene.renderer.render();const gl=labScene.gl,p=new Uint8Array(gl.drawingBufferWidth*gl.drawingBufferHeight*4);gl.readPixels(0,0,gl.drawingBufferWidth,gl.drawingBufferHeight,gl.RGBA,gl.UNSIGNED_BYTE,p);return Array.from(p);},mode);
+   assert.deepEqual(new Uint8Array(pixels),referenceFrames.get(`${scene}-${name}`),'independent ZIP frame '+scene+' '+name);
+  }
+  await page.close();
+ }
+ await writeFile('evidence/package.result','PASS: dependency-free source ZIP, restored official inputs, 12 complete RGBA frames exact.\n');
  assert.deepEqual(errors,[]);
  await writeFile('evidence/results.json',JSON.stringify({browser:browser.version(),records,errors},null,2));
  console.log('PASS initial three official SSR scenes',records);

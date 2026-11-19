@@ -17,7 +17,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm install --no-save playwright@1.56.0
+      - run: npm install --no-save playwright@1.56.0 fflate@0.8.2
       - run: node ci/verify-hw3.mjs
       - uses: actions/upload-artifact@v4
         if: always()
