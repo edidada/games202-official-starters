@@ -30,6 +30,6 @@ inline Integral integrate(double mu,double rough,int samples,bool importance){
 }
 inline double compensation(double ei,double eo,double eavg,double favg){
  if(eavg>=1-1e-8)return 0;
- return (1-ei)*(1-eo)/(pi*(1-eavg))*favg*favg*eavg/std::max(1-favg*(1-eavg),1e-12);
+ return (1-ei)*(1-eo)/(pi*(1-eavg))*favg*eavg/std::max(1-favg*(1-eavg),1e-12);
 }
 }

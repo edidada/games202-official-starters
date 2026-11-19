@@ -62,7 +62,7 @@ vec3 MultiScatterBRDF(float NdotL, float NdotV)
   if(E_avg.x>=1.0-1e-6)return vec3(0.0);
   F_avg=clamp(F_avg,vec3(0.0),vec3(1.0));
   vec3 fms=(vec3(1.0)-E_o)*(vec3(1.0)-E_i)/(PI*max(vec3(1.0)-E_avg,vec3(1e-6)));
-  vec3 missing=F_avg*F_avg*E_avg/max(vec3(1.0)-F_avg*(vec3(1.0)-E_avg),vec3(1e-6));
+  vec3 missing=F_avg*E_avg/max(vec3(1.0)-F_avg*(vec3(1.0)-E_avg),vec3(1e-6));
   return fms*missing;
   
 }
