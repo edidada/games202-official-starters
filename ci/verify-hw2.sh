@@ -31,6 +31,34 @@ done
 
 python3 - <<'PY'
 from pathlib import Path
+import xml.etree.ElementTree as E
+scene=Path('hw2/prt/scenes')
+(scene/'visibility-oracle.obj').write_text("""v 0 0 0
+v -1 -1 0
+v 1 -1 0
+v -1 -1 1
+v 1 -1 1
+v 1 1 1
+v -1 1 1
+vn 0 0 1
+f 1//1 2//1 3//1
+f 4//1 5//1 6//1
+f 4//1 6//1 7//1
+""")
+r=E.parse(scene/'prt.xml').getroot()
+r.find('mesh/string').set('value','visibility-oracle.obj')
+r.find("integrator/integer[@name='PRTSampleCount']").set('value','16384')
+r.find("integrator/string[@name='cubemap']").set('value','cubemap/Indoor')
+for mode in ['unshadowed','shadowed']:
+ r.find("integrator/string[@name='type']").set('value',mode)
+ E.ElementTree(r).write(scene/('visibility-'+mode+'.xml'))
+PY
+for mode in unshadowed shadowed; do
+  timeout 120 hw2/prt/build/nori --precompute "hw2/prt/scenes/visibility-$mode.xml" 2>&1 | tee "evidence/visibility-$mode.log"
+  cp hw2/prt/scenes/cubemap/Indoor/transport.txt "evidence/visibility-$mode-transport.txt"
+done
+python3 - <<'PY'
+from pathlib import Path
 import math,json
 root=Path('evidence');normals=[];face=[]
 for line in Path('hw2/homework2/assets/bunny/bunny.obj').read_text().splitlines():
@@ -58,6 +86,21 @@ for env in ['GraceCathedral','Indoor','Skybox']:
  occluded=sum(u[i]-t[i]>.01 for i in range(0,len(u),9))
  assert occluded>100,occluded
  checks.append(dict(environment=env,face_vertices=len(face),rgb_independent_transport_coefficients=len(u),max_error=max(errs),rms_error=rms,occluded_vertices=occluded))
+# Independent area integral over the upper square: cos(theta)*dOmega =
+# h^2/(x^2+y^2+h^2)^2 dxdy. The receiver is at origin + normal*1e-4.
+u=list(map(float,(root/'visibility-unshadowed-transport.txt').read_text().split()))[1:10]
+t=list(map(float,(root/'visibility-shadowed-transport.txt').read_text().split()))[1:10]
+n=400;h=1-1e-4;integrals=[0.0]*9
+for row in range(n):
+ for col in range(n):
+  a=-1+(col+.5)*2/n;b=-1+(row+.5)*2/n;r2=a*a+b*b+h*h
+  length=math.sqrt(r2);x=a/length;y=b/length;z=h/length
+  basis=[1/math.sqrt(4*math.pi),-math.sqrt(3/(4*math.pi))*y,math.sqrt(3/(4*math.pi))*z,-math.sqrt(3/(4*math.pi))*x,math.sqrt(15/(4*math.pi))*x*y,-math.sqrt(15/(4*math.pi))*y*z,math.sqrt(5/(16*math.pi))*(3*z*z-1),-math.sqrt(15/(4*math.pi))*x*z,math.sqrt(15/(16*math.pi))*(x*x-y*y)]
+  weight=h*h/(r2*r2)*(2/n)**2
+  for j in range(9):integrals[j]+=basis[j]*weight
+errors=[abs((u[j]-t[j])-integrals[j]) for j in range(9)]
+assert max(errors)<.01,(u,t,integrals,errors)
+(root/'visibility-oracle.json').write_text(json.dumps(dict(samples=16384,independent_rectangle_cells=n*n,receiver_offset=1e-4,expected_blocked=integrals,observed_blocked=[a-b for a,b in zip(u,t)],max_error=max(errors)),indent=2))
 (root/'transport-oracle.json').write_text(json.dumps(checks,indent=2))
 print('PASS analytic clamped-cosine SH and nonnegative visibility attenuation',checks)
 PY
