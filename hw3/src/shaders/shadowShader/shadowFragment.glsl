@@ -17,6 +17,6 @@ vec4 EncodeFloatRGBA(float v) {
 }
 
 void main(){
-  gl_FragData[0] = vec4(vec3(gl_FragCoord.z) * 100.0, 1.0);
+  gl_FragData[0] = vec4(vec3(gl_FragCoord.z), 1.0);
   // gl_FragData[0] = EncodeFloatRGBA(gl_FragCoord.z * 100.0);
 }

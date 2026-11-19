@@ -19,7 +19,7 @@ float SimpleShadowMap(vec3 posWorld,float bias){
   vec2 shadowCoord = posLight.xy * 0.5 + 0.5;
   if(any(lessThan(shadowCoord,vec2(0.0))) || any(greaterThan(shadowCoord,vec2(1.0))) || abs(posLight.z)>1.0) return 1.0;
   float depthSM = texture2D(uShadowMap, shadowCoord).x;
-  float depth = (posLight.z * 0.5 + 0.5) * 100.0;
+  float depth = (posLight.z * 0.5 + 0.5);
   return step(0.0, depthSM - depth + bias);
 }
 
@@ -47,6 +47,6 @@ void main(void) {
   gl_FragData[0] = vec4(kd, 1.0);
   gl_FragData[1] = vec4(vec3(vDepth), 1.0);
   gl_FragData[2] = vec4(ApplyTangentNormalMap(), 1.0);
-  gl_FragData[3] = vec4(vec3(SimpleShadowMap(vPosWorld.xyz, 1e-2)), 1.0);
+  gl_FragData[3] = vec4(vec3(SimpleShadowMap(vPosWorld.xyz, 1e-4)), 1.0);
   gl_FragData[4] = vec4(vec3(vPosWorld.xyz), 1.0);
 }
