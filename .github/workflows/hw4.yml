@@ -37,7 +37,7 @@ jobs:
       - run: |
           cp offline/normal/GGX_E_LUT.png hw4/homework4/assets/ball/GGX_E_LUT.png
           cp offline/normal/GGX_Eavg_LUT.png hw4/homework4/assets/ball/GGX_Eavg_LUT.png
-      - run: npm install --no-save playwright@1.56.0
+      - run: npm install --no-save playwright@1.56.0 fflate@0.8.2
       - run: node ci/verify-hw4-webgl.mjs
       - uses: actions/upload-artifact@v4
         if: always()

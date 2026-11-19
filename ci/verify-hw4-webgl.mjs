@@ -1,10 +1,12 @@
 import {chromium} from 'playwright';
 import {createServer} from 'node:http';
-import {mkdir,readFile,writeFile} from 'node:fs/promises';
-import {resolve,extname} from 'node:path';
+import {mkdir,readFile,writeFile,mkdtemp,cp} from 'node:fs/promises';
+import {resolve,extname,dirname} from 'node:path';
 import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
-const root=resolve('hw4/homework4'),errors=[];
+import {tmpdir} from 'node:os';
+import {zipSync,unzipSync} from 'fflate';
+let root=resolve('hw4/homework4');const errors=[];
 await mkdir('evidence',{recursive:true});await writeFile('evidence/commit.txt',execFileSync('git',['-c',`safe.directory=${process.cwd()}`,'rev-parse','HEAD']));
 const mime={'.html':'text/html','.js':'text/javascript','.glsl':'text/plain','.jpg':'image/jpeg','.png':'image/png','.gltf':'model/gltf+json'};
 const server=createServer(async(req,res)=>{try{const path=resolve(root,'.'+new URL(req.url,'http://localhost').pathname.replace(/^\/$/,'/index.html'));if(!path.startsWith(root+'/'))throw Error('path');const data=await readFile(path);res.writeHead(200,{'Content-Type':mime[extname(path)]||'application/octet-stream'});res.end(data);}catch{res.writeHead(404);res.end();}});
@@ -81,5 +83,23 @@ try{
  }
  const delta=rough=>{const a=oracle.cases.find(c=>c.kind==='PBR'&&c.roughness===rough&&c.cosine===.5),b=oracle.cases.find(c=>c.kind==='KC'&&c.roughness===rough&&c.cosine===.5);return b.pixel[0]-a.pixel[0];};assert(delta(.95)>delta(.15)+5,'controlled-direction compensation gain');
  await writeFile('evidence/shader-oracle.json',JSON.stringify({cases:checked,high_roughness_gain:delta(.95),low_roughness_gain:delta(.15)},null,2));
+ const files=unzipSync(new Uint8Array(await readFile('offline/base-source.zip')));
+ for(const name of ['single-scattering','kulla-conty'])files['images/'+name+'.png']=new Uint8Array(await readFile('evidence/'+name+'.png'));
+ const zipped=zipSync(files,{level:6});await writeFile('evidence/edidada_Homework4.zip',zipped);
+ const original=root,extracted=await mkdtemp(resolve(tmpdir(),'games202-hw4-'));
+ for(const [name,data]of Object.entries(unzipSync(zipped))){const path=resolve(extracted,name);assert(path.startsWith(extracted+'/'));await mkdir(dirname(path),{recursive:true});await writeFile(path,data);}
+ await cp(original+'/lib',extracted+'/webgl/lib',{recursive:true});await cp(original+'/assets',extracted+'/webgl/assets',{recursive:true});
+ for(const name of ['GGX_E_LUT','GGX_Eavg_LUT'])await cp(extracted+'/images/'+name+'.png',extracted+'/webgl/assets/ball/'+name+'.png');
+ await page.close();root=extracted+'/webgl';
+ const fresh=await browser.newPage({viewport:{width:960,height:640},screen:{width:960,height:640}});
+ await fresh.addInitScript(()=>{window.labManualRender=true;});fresh.on('pageerror',e=>errors.push(String(e)));
+ await fresh.goto(`http://127.0.0.1:${server.address().port}/`,{waitUntil:'networkidle'});
+ await fresh.waitForFunction(()=>window.labLoadError||(window.labScene&&labScene.renderer.meshes.length===41),{},{timeout:60000});assert.equal(await fresh.evaluate(()=>window.labLoadError||null),null);
+ for(const flag of [0,1]){
+  const frame=await fresh.evaluate(flag=>{setCompensation(flag);labScene.renderer.render();const gl=labScene.gl,p=new Uint8Array(gl.drawingBufferWidth*gl.drawingBufferHeight*4);gl.readPixels(0,0,gl.drawingBufferWidth,gl.drawingBufferHeight,gl.RGBA,gl.UNSIGNED_BYTE,p);return {pixels:Array.from(p),error:gl.getError()};},flag);
+  assert.equal(frame.error,0);assert.deepEqual(new Uint8Array(frame.pixels),new Uint8Array(frames[flag].pixels),'restored ZIP WebGL frame '+flag);
+ }
+ await fresh.close();assert((await readFile('offline/native-package.result','utf8')).startsWith('PASS'));
+ await writeFile('evidence/package.result','PASS native source rebuild and all LUT PNG/CSV exact; restored final ZIP two complete WebGL RGBA frames exact.\n');
  assert.deepEqual(errors,[]);await writeFile('evidence/webgl-results.json',JSON.stringify({browser:browser.version(),meshes:41,brighter_channels:brighter,darker_channels:darker,groups,errors},null,2));console.log('PASS initial Kulla-Conty scene and compensation comparison',groups);
 }finally{await writeFile('evidence/browser-errors.json',JSON.stringify(errors));if(browser)await browser.close();server.close();}
