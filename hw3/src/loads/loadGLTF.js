@@ -11,11 +11,14 @@ function loadGLTF(renderer, path, name, materialName) {
 			console.log('model ' + Math.round(percentComplete, 2) + '% downloaded');
 		}
 	}
-	function onError() { }
+	function onError(error) {window.labLoadError=String(error);console.error(error);}
 
 	new THREE.GLTFLoader(manager)
 		.setPath(path)
 		.load(name + '.gltf', function (gltf) {
+            gltf.scene.updateMatrixWorld(true);
+            let expected=0;gltf.scene.traverse(child=>{if(child.isMesh)expected++;});
+            window.labExpectedMeshes=expected;
 			gltf.scene.traverse(function (child) {
 
 				if (child.isMesh) {
@@ -23,9 +26,10 @@ function loadGLTF(renderer, path, name, materialName) {
 					let mat;
 					if (Array.isArray(child.material)) mat = child.material[0];
 					else mat = child.material;
-					gltfTransform = setTransform(child.position.x, child.position.y, child.position.z,
-						child.scale.x, child.scale.y, child.scale.z,
-						child.rotation.x, child.rotation.y, child.rotation.z);
+                    const position=new THREE.Vector3(),scale=new THREE.Vector3(),rotation=new THREE.Quaternion();
+                    child.matrixWorld.decompose(position,rotation,scale);
+                    const angles=new THREE.Euler().setFromQuaternion(rotation);
+                    const gltfTransform=setTransform(position.x,position.y,position.z,scale.x,scale.y,scale.z,angles.x,angles.y,angles.z);
 					var indices = Array.from({ length: geo.attributes.position.count }, (v, k) => k);
 					let mesh = new Mesh({ name: 'aVertexPosition', array: geo.attributes.position.array },
 						{ name: 'aNormalPosition', array: geo.attributes.normal.array },
@@ -49,6 +53,7 @@ function loadGLTF(renderer, path, name, materialName) {
 						normalMap.CreateConstantTexture(renderer.gl, [0.5, 0.5, 1], false);
 					}
 
+                    let material,shadowMaterial,bufferMaterial;
 					let light = renderer.lights[0].entity;
 					switch (materialName) {
 						case 'SSRMaterial':
@@ -73,5 +78,5 @@ function loadGLTF(renderer, path, name, materialName) {
 				}
 
 			});
-		});
+		},undefined,onError);
 }

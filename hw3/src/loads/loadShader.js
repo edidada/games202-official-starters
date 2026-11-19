@@ -1,19 +1,5 @@
-async function loadShaderFile(filename) {
-
-    return new Promise((resolve, reject) => {
-        const loader = new THREE.FileLoader();
-
-        loader.load(filename, (data) => {
-            resolve(data);
-        });
-    });
-}
-
-async function getShaderString(filename) {
-
-    let val = ''
-    await this.loadShaderFile(filename).then(result => {
-        val = result;
-    });
-    return val;
+const shaderSources=new Map();
+function getShaderString(filename){
+ if(!shaderSources.has(filename))shaderSources.set(filename,fetch(filename).then(r=>{if(!r.ok)throw new Error(filename+': '+r.status);return r.text();}));
+ return shaderSources.get(filename);
 }

@@ -5,6 +5,8 @@ class SSRMaterial extends Material {
         let lightDir = light.CalcShadingDirection();
 
         super({
+            'uRenderMode': { type: '1f', value: 1 },
+            'uRenderMode': {type:'1f',value:1},
             'uLightRadiance': { type: '3fv', value: lightIntensity },
             'uLightDir': { type: '3fv', value: lightDir },
 

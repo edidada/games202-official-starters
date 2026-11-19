@@ -1,0 +1,24 @@
+name: GAMES202 HW3
+on:
+  push:
+    branches: [edidada/hw3]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  webgl:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-save playwright@1.56.0
+      - run: npx playwright install --with-deps chromium
+      - run: node ci/verify-hw3.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: hw3-evidence
+          path: evidence/

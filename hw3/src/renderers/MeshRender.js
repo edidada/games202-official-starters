@@ -50,7 +50,7 @@ class MeshRender {
 	bindGeometryInfo() {
 		const gl = this.gl;
 
-		if (this.mesh.hasVertices) {
+		if (this.mesh.hasVertices && this.shader.program.attribs[this.mesh.verticesName] >= 0) {
 			const numComponents = 3;
 			const type = gl.FLOAT;
 			const normalize = false;

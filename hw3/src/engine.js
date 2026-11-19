@@ -1,4 +1,6 @@
 var gl, gl_draw_buffers;
+const sceneName=new URLSearchParams(location.search).get('scene')||'cube1';
+if(!['cube1','cube2','cave'].includes(sceneName))throw new Error('Invalid scene');
 
 var bufferFBO;
 var bumpMap;
@@ -16,7 +18,7 @@ function GAMES202Main() {
 		alert('Unable to initialize WebGL. Your browser or machine may not support it.');
 		return;
 	}
-	gl.getExtension('OES_texture_float');
+	if(!gl.getExtension('OES_texture_float')||!gl.getExtension('WEBGL_color_buffer_float'))throw new Error('Float render targets required');
 	gl_draw_buffers = gl.getExtension('WEBGL_draw_buffers');
 	var maxdb = gl.getParameter(gl_draw_buffers.MAX_DRAW_BUFFERS_WEBGL);
     console.log('MAX_DRAW_BUFFERS_WEBGL: ' + maxdb);
@@ -34,6 +36,7 @@ function GAMES202Main() {
 	cameraPosition = [4.18927, 1.0313, 2.07331]
 	cameraTarget = [2.92191, 0.98, 1.55037]
 	*/
+	if(sceneName==='cave'){cameraPosition=[4.18927,1.0313,2.07331];cameraTarget=[2.92191,.98,1.55037];}
 	camera.position.set(cameraPosition[0], cameraPosition[1], cameraPosition[2]);
 	camera.fbo = new FBO(gl);
 
@@ -80,17 +83,21 @@ function GAMES202Main() {
 		'z': -0.2,
 	};
 	// */
+	if(sceneName==='cave'){lightRadiance=[20,20,20];lightPos=[-.45,5.40507,.637043];lightDir={x:.39048811,y:-.89896828,z:.19843153};}
 	let lightUp = [1, 0, 0];
 	const directionLight = new DirectionalLight(lightRadiance, lightPos, lightDir, lightUp, renderer.gl);
 	renderer.addLight(directionLight);
 
 	// Add shapes
-	loadGLTF(renderer, 'assets/cube/', 'cube1', 'SSRMaterial');
+	loadGLTF(renderer, sceneName==='cave'?'assets/cave/':'assets/cube/', sceneName, 'SSRMaterial');
+    window.labScene={gl,renderer,camera};
+    window.setRenderMode=mode=>{for(const mesh of renderer.meshes)mesh.material.uniforms.uRenderMode.value=mode;};
 	// loadGLTF(renderer, 'assets/cube/', 'cube2', 'SSRMaterial');
 	// loadGLTF(renderer, 'assets/cave/', 'cave', 'SSRMaterial');
 
 	function createGUI() {
 		const gui = new dat.gui.GUI();
+        const controls={mode:1};gui.add(controls,'mode',{Direct:0,Combined:1,Indirect:2,Mirror:3}).onChange(value=>setRenderMode(Number(value)));
 		const lightPanel = gui.addFolder('Directional Light');
 		lightPanel.add(renderer.lights[0].entity.lightDir, 'x', -10, 10, 0.1);
 		lightPanel.add(renderer.lights[0].entity.lightDir, 'y', -10, 10, 0.1);
@@ -102,7 +109,7 @@ function GAMES202Main() {
 	function mainLoop(now) {
 		cameraControls.update();
 
-		renderer.render();
+		if(!window.labManualRender)renderer.render();
 		requestAnimationFrame(mainLoop);
 	}
 	requestAnimationFrame(mainLoop);
