@@ -5,7 +5,7 @@ import {resolve,extname} from 'node:path';
 import {execFileSync} from 'node:child_process';
 import assert from 'node:assert/strict';
 const root=resolve('hw3'),errors=[],records=[];
-await mkdir('evidence',{recursive:true});await writeFile('evidence/commit.txt',execFileSync('git',['rev-parse','HEAD']));
+await mkdir('evidence',{recursive:true});await writeFile('evidence/commit.txt',execFileSync('git',['-c',`safe.directory=${process.cwd()}`,'rev-parse','HEAD']));
 const mime={'.html':'text/html','.js':'text/javascript','.glsl':'text/plain','.png':'image/png','.jpg':'image/jpeg','.gltf':'model/gltf+json','.bin':'application/octet-stream'};
 const server=createServer(async(req,res)=>{try{
  const path=resolve(root,'.'+new URL(req.url,'http://localhost').pathname.replace(/^\/$/,'/index.html'));
