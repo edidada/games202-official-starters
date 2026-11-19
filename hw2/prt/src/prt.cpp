@@ -263,33 +263,39 @@ public:
         // Projection transport
         m_TransportSHCoeffs.resize(SHCoeffLength, mesh->getVertexCount());
         fout << mesh->getVertexCount() << std::endl;
+        // Common deterministic equal-area spherical samples for both transport
+        // modes and every environment. Visibility only removes contributions.
+        std::vector<Eigen::Vector3d> directions(m_SampleCount);
+        std::vector<Eigen::Matrix<double, SHCoeffLength, 1>> basis(m_SampleCount);
+        const double pi = 3.14159265358979323846;
+        const double goldenAngle = pi * (3.0 - std::sqrt(5.0));
+        for (int sample=0; sample<m_SampleCount; ++sample) {
+            const double z=1.0-2.0*(sample+.5)/m_SampleCount;
+            const double radius=std::sqrt(std::max(0.0,1-z*z));
+            const double phi=sample*goldenAngle;
+            directions[sample]=Eigen::Vector3d(radius*std::cos(phi),radius*std::sin(phi),z);
+            for(int l=0;l<=SHOrder;++l)for(int m=-l;m<=l;++m)
+                basis[sample][l*(l+1)+m]=sh::EvalSH(l,m,directions[sample]);
+        }
         for (int i = 0; i < mesh->getVertexCount(); i++)
         {
             const Point3f &v = mesh->getVertexPositions().col(i);
             const Normal3f &n = mesh->getVertexNormals().col(i);
-            auto shFunc = [&](double phi, double theta) -> double {
-                Eigen::Array3d d = sh::ToVector(phi, theta);
-                const auto wi = Vector3f(d.x(), d.y(), d.z());
-                if (m_Type == Type::Unshadowed)
-                {
-                    // TODO: here you need to calculate unshadowed transport term of a given direction
-                    // TODO: 此处你需要计算给定方向下的unshadowed传输项球谐函数值
-                    return std::max(0.0f, n.normalized().dot(wi));
-                }
-                else
-                {
-                    // TODO: here you need to calculate shadowed transport term of a given direction
-                    // TODO: 此处你需要计算给定方向下的shadowed传输项球谐函数值
-                    const float cosine = std::max(0.0f, n.normalized().dot(wi));
-                    if (cosine == 0) return 0;
-                    const Ray3f visibilityRay(v + n.normalized() * Epsilon, wi);
-                    return scene->rayIntersect(visibilityRay) ? 0.0 : double(cosine);
-                }
-            };
-            auto shCoeff = sh::ProjectFunction(SHOrder, shFunc, m_SampleCount);
-            for (int j = 0; j < shCoeff->size(); j++)
+            Eigen::Matrix<double, SHCoeffLength, 1> shCoeff;
+            shCoeff.setZero();
+            const Normal3f normal=n.normalized();
+            for(int sample=0;sample<m_SampleCount;++sample) {
+                const auto &d=directions[sample];
+                const Vector3f wi(float(d.x()),float(d.y()),float(d.z()));
+                const double cosine=std::max(0.0f,normal.dot(wi));
+                if(cosine<=0)continue;
+                if(m_Type!=Type::Unshadowed && scene->rayIntersect(Ray3f(v+normal*Epsilon,wi)))continue;
+                shCoeff += basis[sample] * cosine;
+            }
+            shCoeff *= 4*pi/m_SampleCount;
+            for (int j = 0; j < shCoeff.size(); j++)
             {
-                m_TransportSHCoeffs.col(i).coeffRef(j) = (*shCoeff)[j];
+                m_TransportSHCoeffs.col(i).coeffRef(j) = shCoeff[j];
             }
         }
         if (m_Type == Type::Interreflection)
