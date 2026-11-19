@@ -119,3 +119,43 @@ for scene in Indoor-shadowed visibility-unshadowed visibility-shadowed; do
 done
 printf '%s\n' 'PASS: Nori ASan/UBSan/leak detection, environment and three scene outputs exact.' > evidence/sanitized.result
 node ci/verify-hw2-webgl.mjs
+
+python3 - <<'PY'
+from pathlib import Path
+import tempfile,shutil,zipfile,subprocess,os
+source=Path.cwd();evidence=source/'evidence'
+stage=Path(tempfile.mkdtemp(prefix='hw2-submission-'))
+shutil.copytree(source/'hw2/prt/src',stage/'prt/src')
+shutil.copy2(source/'hw2/prt/CMakeLists.txt',stage/'prt/CMakeLists.txt')
+shutil.copytree(source/'hw2/homework2/src',stage/'webgl/src')
+shutil.copy2(source/'hw2/homework2/index.html',stage/'webgl/index.html')
+shutil.copy2(source/'hw2/README.md',stage/'README.md')
+(stage/'support').mkdir();shutil.copy2(source/'hw2/prt/ext/nanogui/resources/bin2c.cmake',stage/'support/bin2c.cmake')
+(stage/'images').mkdir()
+for image in evidence.glob('PRT_*.png'):
+ if '-isolated' not in image.name:shutil.copy2(image,stage/'images'/image.name)
+for env in ['GraceCathedral','Indoor','Skybox']:
+ folder=stage/'data'/env;folder.mkdir(parents=True)
+ shutil.copy2(evidence/f'{env}-shadowed-light.txt',folder/'light.txt')
+ for mode in ['unshadowed','shadowed']:shutil.copy2(evidence/f'{env}-{mode}-transport.txt',folder/f'transport-{mode}.txt')
+archive=evidence/'edidada_Homework2.zip'
+with zipfile.ZipFile(archive,'w',zipfile.ZIP_DEFLATED) as z:
+ for file in sorted(stage.rglob('*')):
+  if file.is_file():z.write(file,file.relative_to(stage))
+restored=Path(tempfile.mkdtemp(prefix='hw2-independent-'))
+with zipfile.ZipFile(archive) as z:z.extractall(restored)
+for folder in ['ext','include','scenes']:shutil.copytree(source/'hw2/prt'/folder,restored/'prt'/folder)
+shutil.copy2(restored/'support/bin2c.cmake',restored/'prt/ext/nanogui/resources/bin2c.cmake')
+for folder in ['lib','assets']:shutil.copytree(source/'hw2/homework2'/folder,restored/'webgl'/folder)
+for env in ['GraceCathedral','Indoor','Skybox']:
+ for file in (restored/'data'/env).iterdir():shutil.copy2(file,restored/'webgl/assets/cubemap'/env/file.name)
+with (evidence/'package-build.log').open('w') as log:
+ subprocess.run(['cmake','-S',str(restored/'prt'),'-B',str(restored/'build'),'-G','Ninja','-DCMAKE_BUILD_TYPE=Release'],stdout=log,stderr=subprocess.STDOUT,check=True)
+ subprocess.run(['cmake','--build',str(restored/'build'),'--target','nori','-j2'],stdout=log,stderr=subprocess.STDOUT,check=True)
+ subprocess.run([str(restored/'build/nori'),'--prt-selftest'],stdout=log,stderr=subprocess.STDOUT,check=True)
+ subprocess.run([str(restored/'build/nori'),'--precompute',str(restored/'prt/scenes/Indoor-shadowed.xml')],stdout=log,stderr=subprocess.STDOUT,check=True)
+assert (restored/'prt/scenes/cubemap/Indoor/transport.txt').read_bytes()==(evidence/'Indoor-shadowed-transport.txt').read_bytes()
+env=os.environ.copy();env['HW2_WEB_ROOT']=str(restored/'webgl');env['HW2_EXPECT_DIR']=str(evidence)
+subprocess.run(['node','ci/verify-hw2-webgl.mjs'],env=env,check=True)
+(evidence/'package.result').write_text('PASS: ZIP excludes dependency folders, fresh Nori build/selftest/transport exact and six complete WebGL RGBA frames exact.\n')
+PY

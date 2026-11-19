@@ -3,7 +3,7 @@ import {createServer} from 'node:http';
 import {readFile,writeFile} from 'node:fs/promises';
 import {resolve,extname} from 'node:path';
 import assert from 'node:assert/strict';
-const root=resolve('hw2/homework2'), errors=[];
+const root=resolve(process.env.HW2_WEB_ROOT || 'hw2/homework2'), errors=[];
 const mime={'.html':'text/html','.js':'text/javascript','.glsl':'text/plain','.jpg':'image/jpeg','.png':'image/png'};
 const server=createServer(async(req,res)=>{try{
  const path=resolve(root,'.'+new URL(req.url,'http://localhost').pathname.replace(/^\/$/,'/index.html'));
@@ -48,6 +48,7 @@ try {
    const colored=r.pixels.filter((v,i)=>i%4!==3&&v>10).length;
    assert(colored>500,'No actual PRT model pixels');
    const prefix=`PRT_${mode==='unshadowed'?'Unshadowed':'Shadowed'}_${r.env}`;
+   if(process.env.HW2_EXPECT_DIR) assert.deepEqual(new Uint8Array(r.pixels),new Uint8Array(await readFile(`${process.env.HW2_EXPECT_DIR}/${prefix}.rgba`)),'package frame '+prefix);
    await writeFile(`evidence/${prefix}.png`,Buffer.from(r.full.split(',')[1],'base64'));
    await writeFile(`evidence/${prefix}-isolated.png`,Buffer.from(r.isolated.split(',')[1],'base64'));
    await writeFile(`evidence/${prefix}.rgba`,new Uint8Array(r.pixels));
