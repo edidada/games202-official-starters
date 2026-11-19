@@ -2,6 +2,8 @@ cmake_minimum_required (VERSION 3.2)
 project(nori)
 
 add_subdirectory(ext ext_build)
+find_package(Eigen3 3.3 REQUIRED NO_MODULE)
+set(EIGEN_INCLUDE_DIR "${EIGEN3_INCLUDE_DIR}")
 
 include_directories(
   # Nori include files
@@ -131,3 +133,7 @@ target_compile_features(warptest PRIVATE cxx_std_17)
 target_compile_features(nori PRIVATE cxx_std_17)
 
 # vim: set et ts=2 sw=2 ft=cmake nospell:
+
+set_target_properties(nori warptest PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED YES)
+target_link_libraries(nori Eigen3::Eigen)
+target_link_libraries(warptest Eigen3::Eigen)

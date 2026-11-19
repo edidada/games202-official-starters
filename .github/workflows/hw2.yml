@@ -14,7 +14,7 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends cmake ninja-build libgl1-mesa-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev zlib1g-dev
+          sudo apt-get install -y --no-install-recommends cmake ninja-build libgl1-mesa-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev zlib1g-dev libeigen3-dev
       - run: bash ci/verify-hw2.sh
       - uses: actions/upload-artifact@v4
         if: always()
