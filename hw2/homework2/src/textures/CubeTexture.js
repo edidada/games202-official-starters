@@ -8,17 +8,12 @@ class CubeTexture {
         var img = new Array(6);
         const gl = this.gl;
         for (let i = 0; i < 6; i++) {
-            img[i] = new Image();
-            img[i].src = this.urls[i];
-            var loadImage = async img => {
-                return new Promise((resolve, reject) => {
-                    img.onload = async () => {
-                        console.log("Image Loaded");
-                        resolve(true);
-                    };
-                });
-            };
-            await loadImage(img[i]);
+            img[i] = await new Promise((resolve,reject)=>{
+                const image=new Image();
+                image.onload=()=>resolve(image);
+                image.onerror=()=>reject(new Error('Cubemap image failed: '+this.urls[i]));
+                image.src=this.urls[i];
+            });
         }
 
         this.texture = gl.createTexture();

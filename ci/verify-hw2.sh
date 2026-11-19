@@ -24,5 +24,9 @@ for env in GraceCathedral Indoor Skybox; do
     timeout 600 hw2/prt/build/nori --precompute "hw2/prt/scenes/$env-$mode.xml" 2>&1 | tee "evidence/$env-$mode.log"
     cp "hw2/prt/scenes/cubemap/$env/light.txt" "evidence/$env-$mode-light.txt"
     cp "hw2/prt/scenes/cubemap/$env/transport.txt" "evidence/$env-$mode-transport.txt"
+    cp "evidence/$env-$mode-transport.txt" "hw2/homework2/assets/cubemap/$env/transport-$mode.txt"
+    cp "evidence/$env-$mode-light.txt" "hw2/homework2/assets/cubemap/$env/light.txt"
   done
 done
+
+node ci/verify-hw2-webgl.mjs

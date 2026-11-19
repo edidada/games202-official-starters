@@ -15,6 +15,11 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends cmake ninja-build libgl1-mesa-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev zlib1g-dev libeigen3-dev
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-save playwright@1.56.0
+      - run: npx playwright install --with-deps chromium
       - run: bash ci/verify-hw2.sh
       - uses: actions/upload-artifact@v4
         if: always()

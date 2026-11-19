@@ -1,4 +1,6 @@
 let precomputeLT = [];
+const transportMode = new URLSearchParams(location.search).get('mode') || 'shadowed';
+if (!['shadowed','unshadowed'].includes(transportMode)) throw new Error('Invalid transport mode');
 let precomputeL = [];
 var cameraPosition = [50, 0, 100];
 
@@ -93,7 +95,7 @@ async function GAMES202Main() {
             if(values.some(x=>!Number.isFinite(x)))throw new Error('Invalid coefficients: '+file);
             return values;
         };
-        const [light, transport]=await Promise.all([read('light.txt'),read('transport.txt')]);
+        const [light, transport]=await Promise.all([read('light.txt'),read('transport-'+transportMode+'.txt')]);
         if(light.length!==27 || transport.length<10 || (transport.length-1)%9!==0)
             throw new Error('Invalid SH coefficient dimensions');
         precomputeL[i]=Array.from({length:9},(_,j)=>light.slice(j*3,j*3+3));
@@ -114,7 +116,7 @@ async function GAMES202Main() {
 	function mainLoop(now) {
 		cameraControls.update();
 
-		renderer.render();
+		if (!window.labManualRender) renderer.render();
 
 		requestAnimationFrame(mainLoop);
 	}
