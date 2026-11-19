@@ -1,5 +1,5 @@
 #ifdef GL_ES
-precision mediump float;
+precision highp float;
 #endif
 
 uniform vec3 uLightPos;
@@ -20,30 +20,21 @@ varying highp vec3 vNormal;
 
 const float PI = 3.14159265359;
 
-float DistributionGGX(vec3 N, vec3 H, float roughness)
-{
-   // TODO: To calculate GGX NDF here
-    
+float DistributionGGX(vec3 N,vec3 H,float roughness){
+ float a=max(roughness*roughness,1e-8),a2=a*a,nh=max(dot(N,H),0.0);
+ float denom=(1.0-nh*nh)+nh*nh*a2;
+ return a2/max(PI*denom*denom,1e-20);
+}
+float GeometrySchlickGGX(float nv,float roughness){
+ float k=(roughness+1.0)*(roughness+1.0)/8.0;
+ return nv<=0.0?0.0:nv/(nv*(1.0-k)+k);
+}
+float GeometrySmith(vec3 N,vec3 V,vec3 L,float roughness){
+ return GeometrySchlickGGX(max(dot(N,V),0.0),roughness)*GeometrySchlickGGX(max(dot(N,L),0.0),roughness);
 }
 
-float GeometrySchlickGGX(float NdotV, float roughness)
-{
-    // TODO: To calculate Schlick G1 here
-    
-    return 1.0;
-}
-
-float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness)
-{
-    // TODO: To calculate Smith G here
-
-    return 1.0;
-}
-
-vec3 fresnelSchlick(vec3 F0, vec3 V, vec3 H)
-{
-    // TODO: To calculate Schlick F here
-    return vec3(1.0);
+vec3 fresnelSchlick(vec3 F0,vec3 V,vec3 H){
+ return F0+(vec3(1.0)-F0)*pow(1.0-clamp(dot(V,H),0.0,1.0),5.0);
 }
 
 
@@ -67,10 +58,11 @@ vec3 MultiScatterBRDF(float NdotL, float NdotV)
   vec3 edgetint = vec3(0.827, 0.792, 0.678);
   vec3 F_avg = AverageFresnel(albedo, edgetint);
   
-  // TODO: To calculate fms and missing energy here
-
-
-  return vec3(1.0);
+  if(E_avg.x>=1.0-1e-6)return vec3(0.0);
+  F_avg=clamp(F_avg,vec3(0.0),vec3(1.0));
+  vec3 fms=(vec3(1.0)-E_o)*(vec3(1.0)-E_i)/(PI*max(vec3(1.0)-E_avg,vec3(1e-6)));
+  vec3 missing=F_avg*F_avg*E_avg/max(vec3(1.0)-F_avg*(vec3(1.0)-E_avg),vec3(1e-6));
+  return fms*missing;
   
 }
 

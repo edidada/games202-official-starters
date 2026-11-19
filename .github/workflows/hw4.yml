@@ -1,0 +1,19 @@
+name: GAMES202 HW4
+on:
+  push:
+    branches: [edidada/hw4]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  lut:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash ci/verify-hw4.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: hw4-evidence
+          path: evidence/
