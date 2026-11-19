@@ -8,6 +8,9 @@ permissions:
 jobs:
   webgl:
     runs-on: ubuntu-24.04
+    container: mcr.microsoft.com/playwright:v1.56.0-noble
+    env:
+      PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
@@ -15,7 +18,6 @@ jobs:
         with:
           node-version: 22
       - run: npm install --no-save playwright@1.56.0
-      - run: npx playwright install --with-deps chromium
       - run: node ci/verify-hw3.mjs
       - uses: actions/upload-artifact@v4
         if: always()
