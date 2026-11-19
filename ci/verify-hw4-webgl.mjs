@@ -30,12 +30,16 @@ try{
   for(const roughness of [.35,.55,.75,.95]){
    renderer.meshes=all.filter(m=>m.material instanceof KullaContyMaterial&&Math.abs(m.material.uniforms.uRoughness.value-roughness)<1e-6);
    if(renderer.meshes.length!==4)throw Error('Expected four shading-ball submeshes');
+   const originals=renderer.meshes.map(m=>m.mesh.transform.translate);
+   for(const mesh of renderer.meshes)mesh.mesh.transform.translate=[0,0,0];
    const means=[];
-   for(const flag of [0,1]){setCompensation(flag);renderer.render();const p=new Uint8Array(gl.drawingBufferWidth*gl.drawingBufferHeight*4);gl.readPixels(0,0,gl.drawingBufferWidth,gl.drawingBufferHeight,gl.RGBA,gl.UNSIGNED_BYTE,p);let sum=0,count=0;for(let i=0;i<p.length;i+=4)if(p[i]+p[i+1]+p[i+2]>0){sum+=p[i]+p[i+1]+p[i+2];count+=3;}means.push(sum/count);}
+   for(const flag of [0,1]){setCompensation(flag);renderer.render();const p=new Uint8Array(gl.drawingBufferWidth*gl.drawingBufferHeight*4);gl.readPixels(0,0,gl.drawingBufferWidth,gl.drawingBufferHeight,gl.RGBA,gl.UNSIGNED_BYTE,p);let sum=0;for(let i=0;i<p.length;i+=4)sum+=p[i]+p[i+1]+p[i+2];means.push(sum/(p.length/4*3));}
+   renderer.meshes.forEach((m,i)=>{m.mesh.transform.translate=originals[i];});
    groups.push({roughness,single_mean:means[0],compensated_mean:means[1],ratio:means[1]/means[0]});
   }
   renderer.meshes=all;return groups;
  });
+ await writeFile('evidence/roughness-groups.json',JSON.stringify(groups,null,2));
  for(const g of groups)assert(g.compensated_mean>g.single_mean,'No compensation '+JSON.stringify(g));
  assert(groups[3].ratio>groups[0].ratio,'High roughness compensation should be stronger');
  assert.deepEqual(errors,[]);await writeFile('evidence/webgl-results.json',JSON.stringify({browser:browser.version(),meshes:33,brighter_channels:brighter,darker_channels:darker,groups,errors},null,2));console.log('PASS initial Kulla-Conty scene and compensation comparison',groups);
