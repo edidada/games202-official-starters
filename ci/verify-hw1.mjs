@@ -58,7 +58,7 @@ try{
   const f=compile(gl.FRAGMENT_SHADER,functions+`uniform float receiver; uniform float mode;
   void main(){vec4 c=vec4(0.45+gl_FragCoord.x/512.0*0.1,0.5,receiver,1.0);
   float v=mode<0.5?useShadowMap(uShadowMap,c):(mode<1.5?PCF(uShadowMap,c):PCSS(uShadowMap,c));gl_FragColor=vec4(v,v,v,1.0);}`);
-  const v=compile(gl.VERTEX_SHADER,'attribute vec2 p;void main(){gl_Position=vec4(p,0,1);}');
+  const v=compile(gl.VERTEX_SHADER,'attribute vec2 p; varying highp vec3 vNormal; void main(){vNormal=vec3(0);gl_Position=vec4(p,0,1);}');
   const program=gl.createProgram();gl.attachShader(program,v);gl.attachShader(program,f);gl.linkProgram(program);
   if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(program));gl.useProgram(program);
   const buffer=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,3,-1,-1,3]),gl.STATIC_DRAW);
@@ -97,6 +97,11 @@ try{
   assert.equal(frame.error,0);assert(frame.pixels.filter((v,i)=>i%4!==3&&v>30).length>5000);
   await writeFile(`evidence/${name}.png`,Buffer.from(frame.png.split(',')[1],'base64'));
   await writeFile(`evidence/${name}.rgba`,new Uint8Array(frame.pixels));frames.push(frame);
+ }
+ // These world-scene floor pixels are far from both model shadows.
+ for (const frame of frames.slice(1)) for (const [x,y] of [[500,500],[300,450],[500,400],[700,400]]) {
+  const offset=((719-y)*960+x)*4;
+  for(let c=0;c<3;c++)assert(Math.abs(frame.pixels[offset+c]-frames[0].pixels[offset+c])<=3,'unoccluded floor self-shadow');
  }
  const diffs=frames.slice(1).map(f=>f.pixels.filter((v,i)=>i%4!==3&&v<frames[0].pixels[i]-5).length);
  assert(diffs.every(x=>x>1000),JSON.stringify(diffs));

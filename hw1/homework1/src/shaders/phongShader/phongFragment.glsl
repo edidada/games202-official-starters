@@ -94,9 +94,18 @@ uniform float uShadowMode;
 bool outsideMap(vec3 c) {
   return c.x < 0.0 || c.x > 1.0 || c.y < 0.0 || c.y > 1.0 || c.z < 0.0 || c.z > 1.0;
 }
-float compareDepth(sampler2D map, vec2 uv, float depth) {
+float compareWithBias(sampler2D map, vec2 uv, float depth, float bias) {
   if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) return 1.0;
-  return step(depth - DEPTH_BIAS, unpack(texture2D(map, uv)));
+  return step(depth - bias, unpack(texture2D(map, uv)));
+}
+float compareDepth(sampler2D map, vec2 uv, float depth) {
+  return compareWithBias(map, uv, depth, DEPTH_BIAS);
+}
+float filterBias(float radius) {
+  if (length(vNormal) < 0.1 || length(uLightPos) < 0.1) return DEPTH_BIAS;
+  float cosine = abs(dot(normalize(vNormal), normalize(uLightPos)));
+  float slope = sqrt(max(1.0 - cosine * cosine, 0.0)) / max(cosine, 0.1);
+  return DEPTH_BIAS + radius * LIGHT_EXTENT / (LIGHT_FAR - LIGHT_NEAR) * slope;
 }
 float findBlocker(sampler2D map, vec2 uv, float receiver) {
   float sum = 0.0;
@@ -116,7 +125,7 @@ float findBlocker(sampler2D map, vec2 uv, float receiver) {
 float filterShadow(sampler2D map, vec3 c, float radius) {
   float sum = 0.0;
   for (int i = 0; i < PCF_NUM_SAMPLES; ++i)
-    sum += compareDepth(map, c.xy + poissonDisk[i] * radius, c.z);
+    sum += compareWithBias(map, c.xy + poissonDisk[i] * radius, c.z, filterBias(radius));
   return sum / float(PCF_NUM_SAMPLES);
 }
 float PCF(sampler2D map, vec4 coords) {
