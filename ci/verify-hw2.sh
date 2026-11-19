@@ -4,6 +4,7 @@ mkdir -p evidence
 git rev-parse HEAD > evidence/commit.txt
 cmake -S hw2/prt -B hw2/prt/build -G Ninja -DCMAKE_BUILD_TYPE=Release 2>&1 | tee evidence/configure.log
 cmake --build hw2/prt/build --target nori -j2 2>&1 | tee evidence/build.log
+hw2/prt/build/nori --prt-selftest 2>&1 | tee evidence/environment-oracle.log
 # Use exactly the WebGL mesh, preserving its triangle/normal ordering.
 cp hw2/homework2/assets/bunny/bunny.obj hw2/prt/scenes/webgl-bunny.obj
 python3 - <<'PY'

@@ -149,6 +149,51 @@ namespace ProjEnv
     }
 }
 
+// Analytic tests independent of scene mesh and Monte Carlo transport.
+void runPRTSelfTests() {
+    constexpr int resolution = 32;
+    constexpr double pi = 3.14159265358979323846;
+    std::vector<std::unique_ptr<float[]>> images(6);
+    double area = 0;
+    for (int y=0; y<resolution; ++y)
+        for (int x=0; x<resolution; ++x)
+            area += 6.0 * ProjEnv::CalcArea(x,y,resolution,resolution);
+    if (std::abs(area-4*pi)>1e-4) throw NoriException("Cubemap area oracle failed");
+    double maxError=0;
+    for (int test=0; test<2; ++test) {
+        for (int face=0; face<6; ++face) {
+            images[face].reset(new float[resolution*resolution*3]);
+            for (int y=0; y<resolution; ++y) for (int x=0; x<resolution; ++x) {
+                const double u=2.0*(x+.5)/resolution-1, v=2.0*(y+.5)/resolution-1;
+                // Explicit OpenGL face directions; do not reuse projector table.
+                Eigen::Vector3d d;
+                switch(face) {
+                    case 0: d=Eigen::Vector3d(-1,-v,u);break;
+                    case 1: d=Eigen::Vector3d(1,-v,-u);break;
+                    case 2: d=Eigen::Vector3d(u,1,v);break;
+                    case 3: d=Eigen::Vector3d(u,-1,-v);break;
+                    case 4: d=Eigen::Vector3d(u,-v,1);break;
+                    default:d=Eigen::Vector3d(-u,-v,-1);break;
+                }
+                d.normalize();
+                const double value=test ? 1+.2*d.x()+.3*d.y()+.4*d.z() : 1;
+                for(int c=0;c<3;c++) images[face][(y*resolution+x)*3+c]=float(value);
+            }
+        }
+        const auto coeff=ProjEnv::PrecomputeCubemapSH<2>(images,resolution,resolution,3);
+        const double linear=std::sqrt(4*pi/3);
+        const double expected[9]={std::sqrt(4*pi),test?-.3*linear:0,
+            test?.4*linear:0,test?-.2*linear:0,0,0,0,0,0};
+        for(int i=0;i<9;i++)for(int c=0;c<3;c++){
+            const double error=std::abs(coeff[i][c]-expected[i]);
+            maxError=std::max(maxError,error);
+            if(error>1e-4) throw NoriException("Environment SH analytic oracle failed at coefficient %d",i);
+        }
+    }
+    std::cout << "PRT_ENV_ORACLE PASS area=" << std::setprecision(12) << area
+              << " max_error=" << maxError << " cases=2 coefficients=54" << std::endl;
+}
+
 class PRTIntegrator : public Integrator
 {
 public:

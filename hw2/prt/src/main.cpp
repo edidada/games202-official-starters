@@ -32,6 +32,7 @@
 #include <thread>
 
 using namespace nori;
+namespace nori {void runPRTSelfTests();}
 
 static int threadCount = -1;
 static bool precomputeOnly = false;
@@ -171,6 +172,10 @@ int main(int argc, char **argv)
     for (int i = 1; i < argc; ++i)
     {
         std::string token(argv[i]);
+        if (token == "--prt-selftest") {
+            try {runPRTSelfTests(); return 0;}
+            catch(const std::exception &e) {std::cerr << e.what() << std::endl; return 1;}
+        }
         if (token == "--precompute") {precomputeOnly = true; continue;}
         if (token == "-t" || token == "--threads")
         {
