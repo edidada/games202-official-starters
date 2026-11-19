@@ -17,3 +17,30 @@ jobs:
         with:
           name: hw4-evidence
           path: evidence/
+
+  webgl:
+    needs: lut
+    runs-on: ubuntu-24.04
+    container: mcr.microsoft.com/playwright:v1.56.0-noble
+    env:
+      PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@v4
+        with:
+          name: hw4-evidence
+          path: offline
+      - run: |
+          cp offline/normal/GGX_E_LUT.png hw4/homework4/assets/ball/GGX_E_LUT.png
+          cp offline/normal/GGX_Eavg_LUT.png hw4/homework4/assets/ball/GGX_Eavg_LUT.png
+      - run: npm install --no-save playwright@1.56.0
+      - run: node ci/verify-hw4-webgl.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: hw4-webgl-evidence
+          path: evidence/
