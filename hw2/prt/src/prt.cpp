@@ -7,6 +7,8 @@
 #include <Eigen/Core>
 #include <fstream>
 #include <random>
+#include <algorithm>
+#include <iomanip>
 #include <stb_image.h>
 
 NORI_NAMESPACE_BEGIN
@@ -34,14 +36,17 @@ namespace ProjEnv
             {
                 width = w;
                 height = h;
-                channel = c;
+                channel = 3;
             }
-            else if (w != width || h != height || c != channel)
+            else if (w != width || h != height || c <= 0)
             {
                 std::cout << "Dismatch resolution for 6 images in cubemap" << std::endl;
                 exit(-1);
             }
-            images[i] = std::unique_ptr<float[]>(image);
+            // stb allocates with malloc; unique_ptr<float[]> must own a new[] copy.
+            images[i] = std::unique_ptr<float[]>(new float[size_t(w) * h * 3]);
+            std::copy(image, image + size_t(w) * h * 3, images[i].get());
+            stbi_image_free(image);
             int index = (0 * 128 + 0) * channel;
             // std::cout << images[i][index + 0] << "\t" << images[i][index + 1] << "\t"
             //           << images[i][index + 2] << std::endl;
@@ -49,13 +54,14 @@ namespace ProjEnv
         return images;
     }
 
+    // Same face order as cubemapNames: -X,+X,+Y,-Y,+Z,-Z.
     const Eigen::Vector3f cubemapFaceDirections[6][3] = {
-        {{0, 0, 1}, {0, -1, 0}, {-1, 0, 0}},  // negx
-        {{0, 0, 1}, {0, -1, 0}, {1, 0, 0}},   // posx
-        {{1, 0, 0}, {0, 0, -1}, {0, -1, 0}},  // negy
-        {{1, 0, 0}, {0, 0, 1}, {0, 1, 0}},    // posy
-        {{-1, 0, 0}, {0, -1, 0}, {0, 0, -1}}, // negz
-        {{1, 0, 0}, {0, -1, 0}, {0, 0, 1}},   // posz
+        {{0,0,1}, {0,-1,0}, {-1,0,0}},
+        {{0,0,-1}, {0,-1,0}, {1,0,0}},
+        {{1,0,0}, {0,0,1}, {0,1,0}},
+        {{1,0,0}, {0,0,-1}, {0,-1,0}},
+        {{1,0,0}, {0,-1,0}, {0,0,1}},
+        {{-1,0,0}, {0,-1,0}, {0,0,-1}}
     };
 
     float CalcPreArea(const float &x, const float &y)
@@ -116,7 +122,7 @@ namespace ProjEnv
         std::vector<Eigen::Array3f> SHCoeffiecents(SHNum);
         for (int i = 0; i < SHNum; i++)
             SHCoeffiecents[i] = Eigen::Array3f(0);
-        float sumWeight = 0;
+        std::vector<Eigen::Array3d> sums(SHNum, Eigen::Array3d::Zero());
         for (int i = 0; i < 6; i++)
         {
             for (int y = 0; y < height; y++)
@@ -129,9 +135,16 @@ namespace ProjEnv
                     int index = (y * width + x) * channel;
                     Eigen::Array3f Le(images[i][index + 0], images[i][index + 1],
                                       images[i][index + 2]);
+                    const double weight = CalcArea(x, y, width, height);
+                    const Eigen::Vector3d direction = dir.cast<double>();
+                    for (int l = 0; l <= int(SHOrder); ++l)
+                        for (int m = -l; m <= l; ++m)
+                            sums[l * (l + 1) + m] += Le.cast<double>() *
+                                (weight * sh::EvalSH(l, m, direction));
                 }
             }
         }
+        for (int i = 0; i < SHNum; ++i) SHCoeffiecents[i] = sums[i].cast<float>();
         return SHCoeffiecents;
     }
 }
@@ -177,6 +190,9 @@ public:
     virtual void preprocess(const Scene *scene) override
     {
 
+        if (scene->getMeshes().size() != 1)
+            throw NoriException("PRT coefficient indexing requires exactly one mesh");
+        if (m_SampleCount <= 0) throw NoriException("PRTSampleCount must be positive");
         // Here only compute one mesh
         const auto mesh = scene->getMeshes()[0];
         // Projection environment
@@ -185,6 +201,9 @@ public:
         auto transPath = cubePath / "transport.txt";
         std::ofstream lightFout(lightPath.str());
         std::ofstream fout(transPath.str());
+        if (!lightFout || !fout) throw NoriException("Cannot open PRT output files");
+        lightFout << std::setprecision(9);
+        fout << std::setprecision(9);
         int width, height, channel;
         std::vector<std::unique_ptr<float[]>> images =
             ProjEnv::LoadCubemapImages(cubePath.str(), width, height, channel);
@@ -210,13 +229,16 @@ public:
                 {
                     // TODO: here you need to calculate unshadowed transport term of a given direction
                     // TODO: 此处你需要计算给定方向下的unshadowed传输项球谐函数值
-                    return 0;
+                    return std::max(0.0f, n.normalized().dot(wi));
                 }
                 else
                 {
                     // TODO: here you need to calculate shadowed transport term of a given direction
                     // TODO: 此处你需要计算给定方向下的shadowed传输项球谐函数值
-                    return 0;
+                    const float cosine = std::max(0.0f, n.normalized().dot(wi));
+                    if (cosine == 0) return 0;
+                    const Ray3f visibilityRay(v + n.normalized() * Epsilon, wi);
+                    return scene->rayIntersect(visibilityRay) ? 0.0 : double(cosine);
                 }
             };
             auto shCoeff = sh::ProjectFunction(SHOrder, shFunc, m_SampleCount);
@@ -275,10 +297,7 @@ public:
         // TODO: you need to delete the following four line codes after finishing your calculation to SH,
         //       we use it to visualize the normals of model for debug.
         // TODO: 在完成了球谐系数计算后，你需要删除下列四行，这四行代码的作用是用来可视化模型法线
-        if (c.isZero()) {
-            auto n_ = its.shFrame.n.cwiseAbs();
-            return Color3f(n_.x(), n_.y(), n_.z());
-        }
+
         return c;
     }
 
