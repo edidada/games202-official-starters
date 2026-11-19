@@ -2,11 +2,12 @@ class KullaContyMaterial extends Material {
 
     constructor(albedo, metallic, roughness, BRDFLut, EavgLut, light, vertexShader, fragmentShader) {
         super({
+            'uEnableComp': {type:'1f',value:1},
             'uAlbedoMap': { type: 'texture', value: albedo },
             'uMetallic': { type: '1f', value: metallic },
             'uRoughness': { type: '1f', value: roughness },
             'uBRDFLut': { type: 'texture', value: BRDFLut },
-            'uEavgFLut': { type: 'texture', value: EavgLut },
+            'uEavgLut': { type: 'texture', value: EavgLut },
             
             'uCubeTexture': { type: 'CubeTexture', value: null },
             'uLightRadiance': { type: '3fv', value: light.lightRadiance },

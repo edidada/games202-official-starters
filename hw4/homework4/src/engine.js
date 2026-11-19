@@ -15,7 +15,7 @@ var resolution = 2048;
 let brdflut, eavglut;
 let envMapPass = null;
 
-GAMES202Main();
+GAMES202Main().catch(error=>{window.labLoadError=String(error);console.error(error);});
 
 async function GAMES202Main() {
 	// Init canvas and gl
@@ -52,6 +52,8 @@ async function GAMES202Main() {
 
 	// Add renderer
 	const renderer = new WebGLRenderer(gl, camera);
+    window.labScene={gl,renderer,camera};
+    window.setCompensation=value=>{for(const m of renderer.meshes)if(m.material.uniforms.uEnableComp)m.material.uniforms.uEnableComp.value=value;};
 
 	// Add lights
 	// light - is open shadow map == true
@@ -67,56 +69,38 @@ async function GAMES202Main() {
 	renderer.addLight(directionLight);
 
 	// Add Sphere
-	let img = new Image(); // brdfLUT
-	img.src = 'assets/ball/GGX_E_LUT.png';
-	var loadImage = async img => {
-		return new Promise((resolve, reject) => {
-			img.onload = async () => {
-				console.log("Image Loaded");
-				resolve(true);
-			};
-		});
-	};
-	await loadImage(img);
-	brdflut = new Texture();
-	brdflut.CreateImageTexture(gl, img);
 
-	let img1 = new Image(); // eavgLUT
-	img1.src = 'assets/ball/GGX_Eavg_LUT.png';
-	var loadImage = async img => {
-		return new Promise((resolve, reject) => {
-			img.onload = async () => {
-				console.log("Image Loaded");
-				resolve(true);
-			};
-		});
-	};
-	await loadImage(img1);
-	eavglut = new Texture();
-	eavglut.CreateImageTexture(gl, img1);
+    const loadLut=async name=>{
+        const image=await new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>resolve(img);img.onerror=()=>reject(new Error('LUT load failed '+name));img.src='assets/ball/'+name;});
+        const texture=new Texture();texture.CreateImageTexture(gl,image);
+        gl.bindTexture(gl.TEXTURE_2D,texture.texture);
+        for(const p of [gl.TEXTURE_WRAP_S,gl.TEXTURE_WRAP_T])gl.texParameteri(gl.TEXTURE_2D,p,gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);gl.bindTexture(gl.TEXTURE_2D,null);return texture;
+    };
+    brdflut=await loadLut('GGX_E_LUT.png');eavglut=await loadLut('GGX_Eavg_LUT.png');
 
 	let metallic = 1.0;
 	let Sphere0Transform = setTransform(180, 60, 0, 180, 180, 180, 0, Math.PI, 0);
 	//loadGLTF(renderer, 'assets/ball/', 'ball', 'KullaContyMaterial', Sphere0Transform, metallic, 0.15);
 	let Sphere1Transform = setTransform(100, 60, 0, 180, 180, 180, 0, Math.PI, 0);
-	loadGLTF(renderer, 'assets/ball/', 'ball', 'KullaContyMaterial', Sphere1Transform, metallic, 0.35);
+	await loadGLTF(renderer, 'assets/ball/', 'ball', 'KullaContyMaterial', Sphere1Transform, metallic, 0.35);
 	let Sphere2Transform = setTransform(20, 60, 0, 180, 180, 180, 0, Math.PI, 0);
-	loadGLTF(renderer, 'assets/ball/', 'ball', 'KullaContyMaterial', Sphere2Transform, metallic, 0.55);
+	await loadGLTF(renderer, 'assets/ball/', 'ball', 'KullaContyMaterial', Sphere2Transform, metallic, 0.55);
 	let Sphere3Transform = setTransform(-60, 60, 0, 180, 180, 180, 0, Math.PI, 0);
-	loadGLTF(renderer, 'assets/ball/', 'ball', 'KullaContyMaterial', Sphere3Transform, metallic, 0.75);
+	await loadGLTF(renderer, 'assets/ball/', 'ball', 'KullaContyMaterial', Sphere3Transform, metallic, 0.75);
 	let Sphere4Transform = setTransform(-140, 60, 0, 180, 180, 180, 0, Math.PI, 0);
-	loadGLTF(renderer, 'assets/ball/', 'ball', 'KullaContyMaterial', Sphere4Transform, metallic, 0.95);
+	await loadGLTF(renderer, 'assets/ball/', 'ball', 'KullaContyMaterial', Sphere4Transform, metallic, 0.95);
 
 	let Sphere5Transform = setTransform(180, -60, 0, 180, 180, 180, 0, Math.PI, 0);
 	//loadGLTF(renderer, 'assets/ball/', 'ball', 'PBRMaterial', Sphere5Transform, metallic, 0.15);
 	let Sphere6Transform = setTransform(100, -60, 0, 180, 180, 180, 0, Math.PI, 0);
-	loadGLTF(renderer, 'assets/ball/', 'ball', 'PBRMaterial', Sphere6Transform, metallic, 0.35);
+	await loadGLTF(renderer, 'assets/ball/', 'ball', 'PBRMaterial', Sphere6Transform, metallic, 0.35);
 	let Sphere7Transform = setTransform(20, -60, 0, 180, 180, 180, 0, Math.PI, 0);
-	loadGLTF(renderer, 'assets/ball/', 'ball', 'PBRMaterial', Sphere7Transform, metallic, 0.55);
+	await loadGLTF(renderer, 'assets/ball/', 'ball', 'PBRMaterial', Sphere7Transform, metallic, 0.55);
 	let Sphere8Transform = setTransform(-60, -60, 0, 180, 180, 180, 0, Math.PI, 0);
-	loadGLTF(renderer, 'assets/ball/', 'ball', 'PBRMaterial', Sphere8Transform, metallic, 0.75);
+	await loadGLTF(renderer, 'assets/ball/', 'ball', 'PBRMaterial', Sphere8Transform, metallic, 0.75);
 	let Sphere9Transform = setTransform(-140, -60, 0, 180, 180, 180, 0, Math.PI, 0);
-	loadGLTF(renderer, 'assets/ball/', 'ball', 'PBRMaterial', Sphere9Transform, metallic, 0.95);
+	await loadGLTF(renderer, 'assets/ball/', 'ball', 'PBRMaterial', Sphere9Transform, metallic, 0.95);
 	// Add SkyBox
 	for (let i = 0; i < envmap.length; i++) {
 		let urls = [
@@ -145,7 +129,7 @@ async function GAMES202Main() {
 	function mainLoop(now) {
 		cameraControls.update();
 
-		renderer.render();
+		if(!window.labManualRender)renderer.render();
 
 		requestAnimationFrame(mainLoop);
 	}

@@ -9,6 +9,7 @@ uniform vec3 uLightDir;
 
 uniform sampler2D uAlbedoMap;
 uniform float uMetallic;
+uniform float uEnableComp;
 uniform float uRoughness;
 uniform sampler2D uBRDFLut;
 uniform sampler2D uEavgLut;
@@ -96,7 +97,7 @@ void main(void) {
   float NdotL = max(dot(N, L), 0.0);        
 
   vec3 Fms = MultiScatterBRDF(NdotL, NdotV);
-  vec3 BRDF = Fmicro + Fms;
+  vec3 BRDF = Fmicro + uEnableComp * Fms;
   
   Lo += BRDF * radiance * NdotL;
   vec3 color = Lo;

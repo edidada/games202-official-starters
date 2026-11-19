@@ -50,7 +50,7 @@ class MeshRender {
 	bindGeometryInfo() {
 		const gl = this.gl;
 
-		if (this.mesh.hasVertices) {
+		if (this.mesh.hasVertices && this.shader.program.attribs[this.mesh.verticesName] >= 0) {
 			const numComponents = 3;
 			const type = gl.FLOAT;
 			const normalize = false;
@@ -69,7 +69,7 @@ class MeshRender {
 				this.shader.program.attribs[this.mesh.verticesName]);
 		}
 
-		if (this.mesh.hasNormals) {
+		if (this.mesh.hasNormals && this.shader.program.attribs[this.mesh.normalsName] >= 0) {
 			const numComponents = 3;
 			const type = gl.FLOAT;
 			const normalize = false;
@@ -87,7 +87,7 @@ class MeshRender {
 				this.shader.program.attribs[this.mesh.normalsName]);
 		}
 
-		if (this.mesh.hasTexcoords) {
+		if (this.mesh.hasTexcoords && this.shader.program.attribs[this.mesh.texcoordsName] >= 0) {
 			const numComponents = 2;
 			const type = gl.FLOAT;
 			const normalize = false;
