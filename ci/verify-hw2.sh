@@ -29,4 +29,36 @@ for env in GraceCathedral Indoor Skybox; do
   done
 done
 
+python3 - <<'PY'
+from pathlib import Path
+import math,json
+root=Path('evidence');normals=[];face=[]
+for line in Path('hw2/homework2/assets/bunny/bunny.obj').read_text().splitlines():
+ w=line.split()
+ if not w:continue
+ if w[0]=='vn':
+  n=list(map(float,w[1:4]));r=math.sqrt(sum(x*x for x in n));normals.append([x/r for x in n])
+ if w[0]=='f':
+  ids=[int(x.split('/')[2])-1 for x in w[1:]]
+  for i in range(1,len(ids)-1):face.extend([ids[0],ids[i],ids[i+1]])
+checks=[]
+for env in ['GraceCathedral','Indoor','Skybox']:
+ u=list(map(float,(root/f'{env}-unshadowed-transport.txt').read_text().split()))[1:]
+ t=list(map(float,(root/f'{env}-shadowed-transport.txt').read_text().split()))[1:]
+ assert len(u)==len(t)==len(face)*9 and all(math.isfinite(x) for x in u+t)
+ errs=[]
+ for i,ni in enumerate(face):
+  x,y,z=normals[ni]
+  basis=[1/math.sqrt(4*math.pi),-math.sqrt(3/(4*math.pi))*y,math.sqrt(3/(4*math.pi))*z,-math.sqrt(3/(4*math.pi))*x,math.sqrt(15/(4*math.pi))*x*y,-math.sqrt(15/(4*math.pi))*y*z,math.sqrt(5/(16*math.pi))*(3*z*z-1),-math.sqrt(15/(4*math.pi))*x*z,math.sqrt(15/(16*math.pi))*(x*x-y*y)]
+  kernel=[math.pi]+[2*math.pi/3]*3+[math.pi/4]*5
+  errs.extend(abs(u[9*i+j]-basis[j]*kernel[j]) for j in range(9))
+  assert -1e-6<=t[9*i]<=u[9*i]+1e-5
+ rms=math.sqrt(sum(x*x for x in errs)/len(errs))
+ assert max(errs)<.04 and rms<.01,(max(errs),rms)
+ occluded=sum(u[i]-t[i]>.01 for i in range(0,len(u),9))
+ assert occluded>100,occluded
+ checks.append(dict(environment=env,face_vertices=len(face),rgb_independent_transport_coefficients=len(u),max_error=max(errs),rms_error=rms,occluded_vertices=occluded))
+(root/'transport-oracle.json').write_text(json.dumps(checks,indent=2))
+print('PASS analytic clamped-cosine SH and nonnegative visibility attenuation',checks)
+PY
 node ci/verify-hw2-webgl.mjs
