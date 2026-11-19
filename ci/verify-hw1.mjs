@@ -66,10 +66,10 @@ try{
   const tex=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,tex);
   gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
   gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
-  // Independent CPU base-256 encoding: left half at depth .3, right half clear.
+  // Independent CPU base-255 encoding: left half at depth .3, right half clear.
   const data=new Uint8Array(2048*2048*4);
-  const shifts=[1,256,65536,16777216];const fract=x=>x-Math.floor(x);
-  const rgba=shifts.map(x=>fract(.3*x));const packed=rgba.map((x,i)=>Math.round((x-(i<3?rgba[i+1]/256:0))*255));
+  const shifts=[1,255,65025,16581375];const fract=x=>x-Math.floor(x);
+  const rgba=shifts.map(x=>fract(.3*x));const packed=rgba.map((x,i)=>Math.round((x-(i<3?rgba[i+1]/255:0))*255));
   for(let y=0;y<2048;y++)for(let x=0;x<2048;x++)for(let c=0;c<4;c++)data[(y*2048+x)*4+c]=x<1024?packed[c]:255;
   gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,2048,2048,0,gl.RGBA,gl.UNSIGNED_BYTE,data);
   const cases=[];
