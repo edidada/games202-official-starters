@@ -40,6 +40,35 @@ try{
   records.push({scene,meshes:frames[0].meshes,direct_lit_channels:lit,indirect_channels:indirect,combined_gain_channels:changed});
   await page.close();
  }
+ const oraclePage=await browser.newPage();
+ const fragment=await readFile(root+'/src/shaders/ssrShader/ssrFragment.glsl','utf8');
+ const oracle=await oraclePage.evaluate(fragment=>{
+  const canvas=document.createElement('canvas');canvas.width=8;canvas.height=8;
+  const gl=canvas.getContext('webgl');if(!gl.getExtension('OES_texture_float'))throw Error('float textures');
+  function compile(type,source){const shader=gl.createShader(type);gl.shaderSource(shader,source);gl.compileShader(shader);if(!gl.getShaderParameter(shader,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(shader));return shader;}
+  const vertex=compile(gl.VERTEX_SHADER,'attribute vec2 p;uniform mat4 matrix;varying mat4 vWorldToScreen;void main(){vWorldToScreen=matrix;gl_Position=vec4(p,0,1);}');
+  const prefix=fragment.slice(0,fragment.indexOf('#define SAMPLE_NUM'));
+  const pixel=compile(gl.FRAGMENT_SHADER,prefix+'uniform vec3 origin;uniform vec3 direction;void main(){vec3 hit;bool found=RayMarch(origin,normalize(direction),hit);gl_FragColor=vec4(found?1.0:0.0,hit/16.0+0.5);}');
+  const program=gl.createProgram();gl.attachShader(program,vertex);gl.attachShader(program,pixel);gl.linkProgram(program);if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(program));gl.useProgram(program);
+  const buffer=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,3,-1,-1,3]),gl.STATIC_DRAW);const loc=gl.getAttribLocation(program,'p');gl.enableVertexAttribArray(loc);gl.vertexAttribPointer(loc,2,gl.FLOAT,false,0,0);
+  const near=.1,far=20;const matrix=new Float32Array([1,0,0,0,0,1,0,0,0,0,(far+near)/(near-far),-1,0,0,2*far*near/(near-far),0]);gl.uniformMatrix4fv(gl.getUniformLocation(program,'matrix'),false,matrix);
+  const size=64;
+  function texture(unit,name,kind){const t=gl.createTexture();gl.activeTexture(gl.TEXTURE0+unit);gl.bindTexture(gl.TEXTURE_2D,t);const a=new Float32Array(size*size*4);
+   for(let y=0;y<size;y++)for(let x=0;x<size;x++){const i=(y*size+x)*4;if(kind==='depth')a[i]=4;else if(kind==='normal')a[i+2]=1;else if(kind==='position'){a[i]=(2*(x+.5)/size-1)*4;a[i+1]=(2*(y+.5)/size-1)*4;a[i+2]=-4;}a[i+3]=1;}
+   gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,size,size,0,gl.RGBA,gl.FLOAT,a);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);gl.uniform1i(gl.getUniformLocation(program,name),unit);return t;
+  }
+  const depth=texture(0,'uGDepth','depth');texture(1,'uGNormalWorld','normal');texture(2,'uGPosWorld','position');
+  const cases=[];
+  for(const [origin,direction,expected] of [[[0,0,-1],[0,0,-1],true],[[0,0,-1],[.2,.1,-1],true],[[0,0,-1],[1,0,0],false],[[0,0,-1],[0,0,1],false],[[0,0,-6],[0,0,-1],false]]){
+   gl.uniform3fv(gl.getUniformLocation(program,'origin'),origin);gl.uniform3fv(gl.getUniformLocation(program,'direction'),direction);gl.drawArrays(gl.TRIANGLES,0,3);const p=new Uint8Array(4);gl.readPixels(4,4,1,1,gl.RGBA,gl.UNSIGNED_BYTE,p);cases.push({origin,direction,expected,found:p[0]>128,hit:Array.from(p.slice(1)).map(x=>(x/255-.5)*16)});
+  }
+  gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,depth);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,size,size,0,gl.RGBA,gl.FLOAT,new Float32Array(size*size*4));gl.uniform3fv(gl.getUniformLocation(program,'origin'),[0,0,-1]);gl.uniform3fv(gl.getUniformLocation(program,'direction'),[0,0,-1]);gl.drawArrays(gl.TRIANGLES,0,3);const p=new Uint8Array(4);gl.readPixels(4,4,1,1,gl.RGBA,gl.UNSIGNED_BYTE,p);
+  return {cases,empty_found:p[0]>128,error:gl.getError()};
+ },fragment);
+ assert.equal(oracle.error,0);assert.equal(oracle.empty_found,false);
+ for(const c of oracle.cases){assert.equal(c.found,c.expected,JSON.stringify(c));if(c.expected){const t=(-4-c.origin[2])/c.direction[2];const expected=c.origin.map((x,i)=>x+t*c.direction[i]);assert(Math.hypot(...expected.map((x,i)=>x-c.hit[i]))<.16,JSON.stringify(c));}}
+ await writeFile('evidence/raymarch-oracle.json',JSON.stringify(oracle,null,2));
+ await oraclePage.close();
  assert.deepEqual(errors,[]);
  await writeFile('evidence/results.json',JSON.stringify({browser:browser.version(),records,errors},null,2));
  console.log('PASS initial three official SSR scenes',records);
