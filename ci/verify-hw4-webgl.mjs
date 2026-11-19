@@ -62,27 +62,37 @@ try{
    const pos=gl.getAttribLocation(program,'p');gl.enableVertexAttribArray(pos);gl.vertexAttribPointer(pos,2,gl.FLOAT,false,0,0);
    for(const [unit,name,tex]of [[0,'uAlbedoMap',white],[1,'uBRDFLut',tables[0].texture],[2,'uEavgLut',tables[1].texture]]){gl.activeTexture(gl.TEXTURE0+unit);gl.bindTexture(gl.TEXTURE_2D,tex);gl.uniform1i(gl.getUniformLocation(program,name),unit);}
    gl.uniform1f(gl.getUniformLocation(program,'uMetallic'),1);gl.uniform1f(gl.getUniformLocation(program,'uEnableComp'),1);gl.uniform3fv(gl.getUniformLocation(program,'uLightRadiance'),[1,1,1]);gl.uniform3fv(gl.getUniformLocation(program,'uLightPos'),[0,0,2]);
-   for(const roughness of [.15,.55,.95])for(const cosine of [.5,.9]){
-    const sine=Math.sqrt(1-cosine*cosine);gl.uniform3fv(gl.getUniformLocation(program,'uCameraPos'),[sine,0,cosine]);gl.uniform3fv(gl.getUniformLocation(program,'uLightDir'),[-sine,0,cosine]);gl.uniform1f(gl.getUniformLocation(program,'uRoughness'),roughness);gl.drawArrays(gl.TRIANGLES,0,3);const pixel=new Uint8Array(4);gl.readPixels(4,4,1,1,gl.RGBA,gl.UNSIGNED_BYTE,pixel);cases.push({kind,roughness,cosine,pixel:Array.from(pixel)});
+   for(const albedo of [[255,255,255],[220,179,123]])for(const roughness of [.15,.55,.95])for(const cosine of [.5,.9]){
+    gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,white);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,1,1,0,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array([...albedo,255]));
+    const sine=Math.sqrt(1-cosine*cosine);gl.uniform3fv(gl.getUniformLocation(program,'uCameraPos'),[sine,0,cosine]);gl.uniform3fv(gl.getUniformLocation(program,'uLightDir'),[-sine,0,cosine]);gl.uniform1f(gl.getUniformLocation(program,'uRoughness'),roughness);gl.drawArrays(gl.TRIANGLES,0,3);const pixel=new Uint8Array(4);gl.readPixels(4,4,1,1,gl.RGBA,gl.UNSIGNED_BYTE,pixel);cases.push({kind,roughness,cosine,albedo,pixel:Array.from(pixel)});
    }
   }
   return {cases,tables:tables.map(({width,height,values})=>({width,height,values})),error:gl.getError()};
  });
  assert.equal(oracle.error,0);
  function lookup(table,u,v){const x=u*table.width-.5,y=(1-v)*table.height-.5,ix=Math.floor(x),iy=Math.floor(y),fx=x-ix,fy=y-iy;let sum=0;for(let j=0;j<2;j++)for(let i=0;i<2;i++){const xx=Math.max(0,Math.min(table.width-1,ix+i)),yy=Math.max(0,Math.min(table.height-1,iy+j));sum+=table.values[(yy*table.width+xx)*4]/255*(i?fx:1-fx)*(j?fy:1-fy);}return sum;}
- const checked=[];
+ const checked=[];let squaredFormulaDistinguished=0;
  for(const c of oracle.cases){
   const k=(c.roughness+1)**2/8,g=c.cosine/(c.cosine*(1-k)+k),d=1/(Math.PI*c.roughness**4);const single=d*g*g/(4*c.cosine*c.cosine);const expected=[];
+  let channel=0;const squaredExpected=[];
   for(const tint of [.827,.792,.678]){
-   const favg=Math.min(1,Math.max(0,.087237+.0230685*tint-.0864902*tint*tint+.0774594*tint**3+.782654-.136432+.278708+.19744*tint+.0360605*tint*tint-.2586*tint));
+   const r=(c.albedo[channel]/255)**2.2;
+   const favg=Math.min(1,Math.max(0,.087237+.0230685*tint-.0864902*tint*tint+.0774594*tint**3+.782654*r-.136432*r*r+.278708*r**3+.19744*tint*r+.0360605*tint*tint*r-.2586*tint*r*r));
    const e=lookup(oracle.tables[0],c.cosine,c.roughness),avg=lookup(oracle.tables[1],0,c.roughness);
    const extra=(1-e)**2/(Math.PI*Math.max(1-avg,1e-6))*favg*avg/Math.max(1-favg*(1-avg),1e-6);
-   const radiance=(single+(c.kind==='KC'?extra:0))*c.cosine;expected.push(Math.round((radiance/(radiance+1))**(1/2.2)*255));
+   const fresnel=r+(1-r)*(1-c.cosine)**5;
+   const radiance=(single*fresnel+(c.kind==='KC'?extra:0))*c.cosine;
+   const oldRadiance=(single*fresnel+(c.kind==='KC'?extra*favg:0))*c.cosine;
+   expected.push(Math.round((radiance/(radiance+1))**(1/2.2)*255));
+   squaredExpected.push(Math.round((oldRadiance/(oldRadiance+1))**(1/2.2)*255));channel++;
   }
+  if(c.kind==='KC'&&expected.some((x,i)=>Math.abs(x-squaredExpected[i])>6))squaredFormulaDistinguished++;
+
   for(let channel=0;channel<3;channel++)assert(Math.abs(c.pixel[channel]-expected[channel])<=3,JSON.stringify({c,expected}));checked.push({...c,expected});
  }
- const delta=rough=>{const a=oracle.cases.find(c=>c.kind==='PBR'&&c.roughness===rough&&c.cosine===.5),b=oracle.cases.find(c=>c.kind==='KC'&&c.roughness===rough&&c.cosine===.5);return b.pixel[0]-a.pixel[0];};assert(delta(.95)>delta(.15)+5,'controlled-direction compensation gain');
- await writeFile('evidence/shader-oracle.json',JSON.stringify({cases:checked,high_roughness_gain:delta(.95),low_roughness_gain:delta(.15)},null,2));
+ const delta=rough=>{const a=oracle.cases.find(c=>c.kind==='PBR'&&c.roughness===rough&&c.cosine===.5&&c.albedo[0]===255),b=oracle.cases.find(c=>c.kind==='KC'&&c.roughness===rough&&c.cosine===.5&&c.albedo[0]===255);return b.pixel[0]-a.pixel[0];};assert(delta(.95)>delta(.15)+5,'controlled-direction compensation gain');
+ assert(squaredFormulaDistinguished>0,'colored oracle must reject prior squared-Favg formula');
+ await writeFile('evidence/shader-oracle.json',JSON.stringify({cases:checked,squared_formula_distinguished_cases:squaredFormulaDistinguished,high_roughness_gain:delta(.95),low_roughness_gain:delta(.15)},null,2));
  const files=unzipSync(new Uint8Array(await readFile('offline/base-source.zip')));
  for(const name of ['single-scattering','kulla-conty'])files['images/'+name+'.png']=new Uint8Array(await readFile('evidence/'+name+'.png'));
  const zipped=zipSync(files,{level:6});await writeFile('evidence/edidada_Homework4.zip',zipped);
