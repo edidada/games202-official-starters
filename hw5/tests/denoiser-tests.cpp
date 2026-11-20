@@ -80,4 +80,21 @@ void sequence(const std::string &dir){
  std::ofstream out(dir+"/metrics.json");out<<"{\"fixture\":\"synthetic two-normal edge, not official scenes\",\"frames\":12,\"raw_mse\":"<<raw/(3*count)<<",\"filter_mse\":"<<spatial/(3*count)<<",\"temporal_mse\":"<<temporal/(3*count)<<"}\n";
  std::cout<<"PASS synthetic sequence noise reduction "<<raw/(3*count)<<" "<<spatial/(3*count)<<" "<<temporal/(3*count)<<"\n";
 }
-int main(int argc,char **argv){try{filterTests();projectionTests();temporalTests();if(argc>1)sequence(argv[1]);}catch(const std::exception&e){std::cerr<<e.what()<<'\n';return 1;}}
+
+void movingSequence(const std::string &dir){
+ std::filesystem::create_directories(dir);std::mt19937 rng(20261121);std::uniform_real_distribution<float> noise(-.3f,.3f);
+ Denoiser d;double raw=0,spatial=0,temporal=0;int count=0,rejected=0;
+ for(int t=0;t<12;++t){auto f=frame(64,40);f.m_matrix.resize(4);f.m_matrix[1].m[0][3]=float(t);
+  auto truth=CreateBuffer2D<Float3>(64,40);
+  for(int y=0;y<40;++y)for(int x=0;x<64;++x){bool object=x>=12+t && x<32+t && y>=10 && y<30;float v=object?.75f:.3f;
+   f.m_id(x,y)=object?1.f:0.f;f.m_normal(x,y)=object?Float3(0,0,-1):Float3(0,0,1);truth(x,y)=Float3(v);f.m_beauty(x,y)=Float3(v+noise(rng));}
+  auto filtered=d.Filter(f);auto result=d.ProcessFrame(f);
+  if(t>0){require(d.m_valid(16+t,15),"moving object history retained");require(!d.m_valid(11+t,15),"newly exposed background history rejected");++rejected;}
+  for(int y=0;y<40;++y)for(int x=0;x<64;++x){raw+=SqrDistance(f.m_beauty(x,y),truth(x,y));spatial+=SqrDistance(filtered(x,y),truth(x,y));temporal+=SqrDistance(result(x,y),truth(x,y));++count;}
+  std::string n=std::to_string(100+t).substr(1);ppm(dir+"/raw-"+n+".ppm",f.m_beauty);ppm(dir+"/truth-"+n+".ppm",truth);ppm(dir+"/filter-"+n+".ppm",filtered);ppm(dir+"/result-"+n+".ppm",result);
+ }
+ require(spatial<raw*.2,"moving spatial noise reduction");require(temporal<spatial,"moving temporal noise reduction");
+ std::ofstream out(dir+"/metrics.json");out<<"{\"fixture\":\"synthetic moving object and disocclusion, not official scenes\",\"frames\":12,\"disocclusion_checks\":"<<rejected<<",\"raw_mse\":"<<raw/(3*count)<<",\"filter_mse\":"<<spatial/(3*count)<<",\"temporal_mse\":"<<temporal/(3*count)<<"}\n";
+ std::cout<<"PASS moving sequence/disocclusion noise reduction "<<raw/(3*count)<<" "<<spatial/(3*count)<<" "<<temporal/(3*count)<<"\n";
+}
+int main(int argc,char **argv){try{filterTests();projectionTests();temporalTests();if(argc>1){sequence(argv[1]);movingSequence(std::string(argv[1])+"/moving");}}catch(const std::exception&e){std::cerr<<e.what()<<'\n';return 1;}}

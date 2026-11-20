@@ -29,21 +29,12 @@ float *ReadImage(const std::string &filename, int &width, int &height,
     }
     float *buffer = new float[width * height * channel];
 
-    if (ret != TINYEXR_SUCCESS) {
-        if (err) {
-            fprintf(stderr, "ERR : %s\n", err);
-            FreeEXRErrorMessage(err); // release memory of error message.
-            delete[] buffer;
-            buffer = nullptr;
+    for (int i = 0; i < width * height; i++) {
+        for (int j = 0; j < channel; j++) {
+            buffer[i * channel + j] = out[i * 4 + j];
         }
-    } else {
-        for (int i = 0; i < width * height; i++) {
-            for (int j = 0; j < channel; j++) {
-                buffer[i * channel + j] = out[i * 4 + j];
-            }
-        }
-        free(out); // release memory of image data
     }
+    free(out);
     return buffer;
 }
 
@@ -64,21 +55,12 @@ float *ReadImageLayer(const std::string &filename, const std::string &layername,
     }
     float *buffer = new float[width * height * channel];
 
-    if (ret != TINYEXR_SUCCESS) {
-        if (err) {
-            fprintf(stderr, "ERR : %s\n", err);
-            FreeEXRErrorMessage(err); // release memory of error message.
-            delete[] buffer;
-            buffer = nullptr;
+    for (int i = 0; i < width * height; i++) {
+        for (int j = 0; j < channel; j++) {
+            buffer[i * channel + j] = out[i * 4 + j];
         }
-    } else {
-        for (int i = 0; i < width * height; i++) {
-            for (int j = 0; j < channel; j++) {
-                buffer[i * channel + j] = out[i * 4 + j];
-            }
-        }
-        free(out); // release memory of image data
     }
+    free(out);
     return buffer;
 }
 

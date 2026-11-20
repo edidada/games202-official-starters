@@ -12,5 +12,7 @@ for mode in normal sanitized; do
 done
 diff -r evidence/normal evidence/sanitized
 ffmpeg -y -framerate 6 -i evidence/normal/result-%02d.ppm -c:v libx264 -pix_fmt yuv420p evidence/synthetic-result.mp4
+ffmpeg -y -framerate 6 -i evidence/normal/moving/result-%02d.ppm -c:v libx264 -pix_fmt yuv420p evidence/synthetic-moving-result.mp4
+bash ci/package-hw5.sh
 printf 'PASS normal/sanitized analytic tests and complete synthetic images exact; official scenes not yet verified.\n' > evidence/result.txt
 git rev-parse HEAD > evidence/commit.txt
