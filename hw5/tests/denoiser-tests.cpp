@@ -51,7 +51,18 @@ void projectionTests(){
  require(!d.m_valid(0,0),"negative out of bounds");require(!d.m_valid(7,3),"background");require(!d.m_valid(6,2),"id mismatch");
  auto invalid=cur;invalid.m_position.Copy(cur.m_position);invalid.m_position(4,0)=Float3(1000,0,0);
  d.Init(old,old.m_beauty);d.Maintain(old);d.Reprojection(invalid);require(!d.m_valid(4,0),"positive out of bounds");
- std::cout<<"PASS object/camera reprojection, negative/positive bounds, background, object ID\n";
+ // Hand-derived affine case: current 90-degree rotation + scale2 + (3,-1)
+ // maps local(1.5,2.5) to world(-2,2). Previous object +(1,1),
+ // previous screen diag(2,1,1,2), gives screen(2.5,1.75) -> pixel(2,1).
+ auto affine=frame(8,4);affine.m_matrix[0].m[0][0]=0;affine.m_matrix[0].m[0][1]=-2;
+ affine.m_matrix[0].m[1][0]=2;affine.m_matrix[0].m[1][1]=0;
+ affine.m_matrix[0].m[0][3]=3;affine.m_matrix[0].m[1][3]=-1;affine.m_position(3,1)=Float3(-2,2,0);
+ d.Init(old,old.m_beauty);d.Maintain(old);d.m_preFrameInfo.m_matrix[0].m[0][3]=1;d.m_preFrameInfo.m_matrix[0].m[1][3]=1;
+ d.m_preFrameInfo.m_matrix.back().m[0][0]=2;d.m_preFrameInfo.m_matrix.back().m[3][3]=2;
+ d.Reprojection(affine);require(d.m_valid(3,1),"rotation/scale/perspective projection");near(d.m_accColor(3,1),Float3(12));
+ d.Init(old,old.m_beauty);d.Maintain(old);d.m_preFrameInfo.m_matrix.back().m[3][3]=0;
+ d.Reprojection(affine);require(!d.m_valid(3,1),"zero homogeneous denominator");
+ std::cout<<"PASS object/camera/rotation/scale/homogeneous reprojection, bounds, background, object ID\n";
 }
 void temporalTests(){
  auto f=frame(7,7);Denoiser d;d.Init(f,f.m_beauty);
@@ -107,6 +118,7 @@ void atrousTests(){
  f.m_beauty(4,4)=Float3(1);out=d.FilterAtrous(f,1);
  // Independent B3 impulse response; center and one off-center tap.
  near(out(4,4),Float3(36.f/256));near(out(3,4),Float3(24.f/256));
+ out=d.FilterAtrous(f,2);near(out(4,4),Float3(121.f/4096)); // dilation by two, not repeated dense convolution
  auto edge=frame(8,4);for(int y=0;y<4;++y)for(int x=4;x<8;++x){edge.m_normal(x,y)=Float3(0,0,-1);edge.m_beauty(x,y)=Float3(1);}
  out=d.FilterAtrous(edge);for(int y=0;y<4;++y)for(int x=0;x<8;++x)near(out(x,y),Float3(x<4?.5f:1.f));
  bool bad=false;try{d.FilterAtrous(edge,0);}catch(const std::invalid_argument&){bad=true;}require(bad,"invalid wavelet levels");
