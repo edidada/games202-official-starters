@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <cmath>
 #include <cstring>
 
@@ -8,7 +9,7 @@
 inline float Sqr(const float &v) { return v * v; }
 inline float SafeSqrt(const float &v) { return std::sqrt(std::max(v, 0.f)); }
 inline float SafeAcos(const float &v) {
-    return std::acos(std::min(std::max(v, 0.f), 1.f));
+    return std::acos(std::min(std::max(v, -1.f), 1.f));
 }
 
 class Float3 {

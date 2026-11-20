@@ -1,6 +1,8 @@
 #include "imageutil.h"
 #include "common.h"
 
+#define TINYEXR_USE_MINIZ 0
+#include <zlib.h>
 #define TINYEXR_IMPLEMENTATION
 #include "tinyexr/tinyexr.h"
 
@@ -17,9 +19,14 @@ float *ReadImage(const std::string &filename, int &width, int &height,
     std::string ext = GetExtension(filename);
     CHECK(ext == "exr");
 
-    float *out; // width * height * RGBA
+    width = height = 0;
+    float *out = nullptr; // TinyEXR owns a malloc allocation
     const char *err = nullptr;
     int ret = LoadEXR(&out, &width, &height, filename.c_str(), &err);
+    if (ret != TINYEXR_SUCCESS) {
+        if (err) { fprintf(stderr, "ERR: %s\n", err); FreeEXRErrorMessage(err); }
+        return nullptr;
+    }
     float *buffer = new float[width * height * channel];
 
     if (ret != TINYEXR_SUCCESS) {
@@ -35,7 +42,7 @@ float *ReadImage(const std::string &filename, int &width, int &height,
                 buffer[i * channel + j] = out[i * 4 + j];
             }
         }
-        delete[] out; // release memory of image data
+        free(out); // release memory of image data
     }
     return buffer;
 }
@@ -46,10 +53,15 @@ float *ReadImageLayer(const std::string &filename, const std::string &layername,
     std::string ext = GetExtension(filename);
     CHECK(ext == "exr");
 
-    float *out; // width * height * RGBA
+    width = height = 0;
+    float *out = nullptr; // TinyEXR owns a malloc allocation
     const char *err = nullptr;
     int ret = LoadEXRWithLayer(&out, &width, &height, filename.c_str(), layername.c_str(),
                                &err);
+    if (ret != TINYEXR_SUCCESS) {
+        if (err) { fprintf(stderr, "ERR: %s\n", err); FreeEXRErrorMessage(err); }
+        return nullptr;
+    }
     float *buffer = new float[width * height * channel];
 
     if (ret != TINYEXR_SUCCESS) {
@@ -65,7 +77,7 @@ float *ReadImageLayer(const std::string &filename, const std::string &layername,
                 buffer[i * channel + j] = out[i * 4 + j];
             }
         }
-        delete[] out; // release memory of image data
+        free(out); // release memory of image data
     }
     return buffer;
 }
