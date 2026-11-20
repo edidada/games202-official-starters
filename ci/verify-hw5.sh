@@ -9,10 +9,14 @@ for mode in normal sanitized; do
   ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1 "build-$mode/denoiser-tests" "evidence/$mode" 2>&1 | tee "evidence/tests-$mode.log"
   ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1 "build-$mode/io-tests" "evidence/$mode/input" 2>&1 | tee "evidence/io-$mode.log"
   ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1 "build-$mode/Denoise" "evidence/$mode/input" "evidence/$mode/output" 2 2>&1 | tee "evidence/cli-$mode.log"
+  ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1 "build-$mode/Denoise" "evidence/$mode/input" "evidence/$mode/output-atrous" 2 atrous 2>&1 | tee "evidence/cli-atrous-$mode.log"
 done
 diff -r evidence/normal evidence/sanitized
+# Timings are intentionally not part of deterministic comparisons.
+OMP_NUM_THREADS=2 build-normal/denoiser-tests evidence/benchmark benchmark 2>&1 | tee evidence/benchmark.log
 ffmpeg -y -framerate 6 -i evidence/normal/result-%02d.ppm -c:v libx264 -pix_fmt yuv420p evidence/synthetic-result.mp4
 ffmpeg -y -framerate 6 -i evidence/normal/moving/result-%02d.ppm -c:v libx264 -pix_fmt yuv420p evidence/synthetic-moving-result.mp4
+ffmpeg -y -framerate 6 -i evidence/normal/atrous/moving/result-%02d.ppm -c:v libx264 -pix_fmt yuv420p evidence/synthetic-atrous-moving-result.mp4
 bash ci/package-hw5.sh
 printf 'PASS normal/sanitized analytic tests and complete synthetic images exact; official scenes not yet verified.\n' > evidence/result.txt
 git rev-parse HEAD > evidence/commit.txt

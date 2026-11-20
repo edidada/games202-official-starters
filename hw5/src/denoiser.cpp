@@ -100,6 +100,43 @@ Buffer2D<Float3> Denoiser::Filter(const FrameInfo &frameInfo) {
     return output;
 }
 
+Buffer2D<Float3> Denoiser::FilterAtrous(const FrameInfo &frameInfo, int iterations) {
+    if (iterations < 1 || iterations > 6)
+        throw std::invalid_argument("atrous iterations must be in [1,6]");
+    const int width=frameInfo.m_beauty.m_width, height=frameInfo.m_beauty.m_height;
+    Buffer2D<Float3> current; current.Copy(frameInfo.m_beauty);
+    auto next=CreateBuffer2D<Float3>(width,height);
+    constexpr float kernel[5]={1.f,4.f,6.f,4.f,1.f};
+    for (int pass=0; pass<iterations; ++pass) {
+        const int step=1<<pass;
+#pragma omp parallel for
+        for (int y=0; y<height; ++y) {
+            for (int x=0; x<width; ++x) {
+                if (frameInfo.m_id(x,y)<0) {next(x,y)=current(x,y);continue;}
+                Float3 sum(0.f);double weightSum=0;
+                const auto normal=frameInfo.m_normal(x,y);
+                for (int ky=-2; ky<=2; ++ky) for (int kx=-2; kx<=2; ++kx) {
+                    const int i=x+kx*step,j=y+ky*step;
+                    if(i<0 || j<0 || i>=width || j>=height || frameInfo.m_id(i,j)<0)continue;
+                    const auto delta=frameInfo.m_position(i,j)-frameInfo.m_position(x,y);
+                    const float lengthSquared=SqrLength(delta);
+                    const float plane=lengthSquared>1e-12f ? Dot(normal,delta)/std::sqrt(lengthSquared):0.f;
+                    const float angle=std::acos(std::clamp(Dot(normal,frameInfo.m_normal(i,j)),-1.f,1.f));
+                    const double exponent=-(SqrDistance(current(x,y),current(i,j))/(2*Sqr(m_sigmaColor))+
+                        Sqr(angle)/(2*Sqr(m_sigmaNormal))+Sqr(plane)/(2*Sqr(m_sigmaPlane)));
+                    // B3-spline kernel, with holes doubling each level. Original
+                    // geometry guides remain fixed; color uses the previous level.
+                    const float weight=kernel[kx+2]*kernel[ky+2]*static_cast<float>(std::exp(exponent));
+                    sum+=current(i,j)*weight;weightSum+=weight;
+                }
+                next(x,y)=weightSum>0 ? sum/static_cast<float>(weightSum):current(x,y);
+            }
+        }
+        std::swap(current,next);
+    }
+    return current;
+}
+
 void Denoiser::Init(const FrameInfo &, const Buffer2D<Float3> &filteredColor) {
     m_accColor.Copy(filteredColor);
     m_misc = CreateBuffer2D<Float3>(m_accColor.m_width,m_accColor.m_height);
@@ -114,7 +151,7 @@ Buffer2D<Float3> Denoiser::ProcessFrame(const FrameInfo &frameInfo) {
        !(m_alpha>=0 && m_alpha<=1) || !(m_sigmaCoord>0) || !(m_sigmaColor>0) ||
        !(m_sigmaNormal>0) || !(m_sigmaPlane>0) || !(m_colorBoxK>=0))
         throw std::invalid_argument("invalid frame dimensions, matrices or filter parameters");
-    const auto filtered=Filter(frameInfo);
+    const auto filtered=m_useAtrous ? FilterAtrous(frameInfo):Filter(frameInfo);
     if(m_useTemportal && m_accColor.m_width==w && m_accColor.m_height==h) {
         Reprojection(frameInfo); TemporalAccumulation(filtered);
     } else Init(frameInfo,filtered);

@@ -3,6 +3,8 @@
 #include <stdexcept>
 #include <filesystem>
 #include <random>
+#include <chrono>
+#include <algorithm>
 void require(bool b,const char *s){if(!b)throw std::runtime_error(s);}
 void near(Float3 a,Float3 b,float eps=2e-5f){require(AbsSum(a,b)<eps,"numeric mismatch");}
 FrameInfo frame(int w,int h){
@@ -67,12 +69,12 @@ void ppm(const std::string &name,const Buffer2D<Float3> &b){
  std::ofstream out(name,std::ios::binary);out<<"P6\n"<<b.m_width<<" "<<b.m_height<<"\n255\n";
  for(int y=0;y<b.m_height;++y)for(int x=0;x<b.m_width;++x){auto c=b(x,y);for(float v:{c.x,c.y,c.z})out.put(static_cast<char>(std::lround(std::clamp(v,0.f,1.f)*255)));}
 }
-void sequence(const std::string &dir){
+void sequence(const std::string &dir, bool atrous=false){
  std::filesystem::create_directories(dir);std::mt19937 rng(20261120);std::uniform_real_distribution<float> noise(-.3f,.3f);
- Denoiser d;double raw=0,spatial=0,temporal=0;int count=0;
+ Denoiser d;d.m_useAtrous=atrous;double raw=0,spatial=0,temporal=0;int count=0;
  for(int t=0;t<12;++t){auto f=frame(64,40);auto truth=frame(64,40).m_beauty;
   for(int y=0;y<40;++y)for(int x=0;x<64;++x){float v=x<32?.3f:.75f;truth(x,y)=Float3(v);f.m_beauty(x,y)=Float3(v+noise(rng));f.m_normal(x,y)=x<32?Float3(0,0,1):Float3(0,1,0);}
-  auto filtered=d.Filter(f);auto result=d.ProcessFrame(f);
+  auto filtered=atrous?d.FilterAtrous(f):d.Filter(f);auto result=d.ProcessFrame(f);
   for(int y=0;y<40;++y)for(int x=0;x<64;++x){raw+=SqrDistance(f.m_beauty(x,y),truth(x,y));spatial+=SqrDistance(filtered(x,y),truth(x,y));temporal+=SqrDistance(result(x,y),truth(x,y));++count;}
   std::string n=std::to_string(100+t).substr(1);ppm(dir+"/raw-"+n+".ppm",f.m_beauty);ppm(dir+"/filter-"+n+".ppm",filtered);ppm(dir+"/result-"+n+".ppm",result);
  }
@@ -81,14 +83,14 @@ void sequence(const std::string &dir){
  std::cout<<"PASS synthetic sequence noise reduction "<<raw/(3*count)<<" "<<spatial/(3*count)<<" "<<temporal/(3*count)<<"\n";
 }
 
-void movingSequence(const std::string &dir){
+void movingSequence(const std::string &dir, bool atrous=false){
  std::filesystem::create_directories(dir);std::mt19937 rng(20261121);std::uniform_real_distribution<float> noise(-.3f,.3f);
- Denoiser d;double raw=0,spatial=0,temporal=0;int count=0,rejected=0;
+ Denoiser d;d.m_useAtrous=atrous;double raw=0,spatial=0,temporal=0;int count=0,rejected=0;
  for(int t=0;t<12;++t){auto f=frame(64,40);f.m_matrix.resize(4);f.m_matrix[1].m[0][3]=float(t);
   auto truth=CreateBuffer2D<Float3>(64,40);
   for(int y=0;y<40;++y)for(int x=0;x<64;++x){bool object=x>=12+t && x<32+t && y>=10 && y<30;float v=object?.75f:.3f;
    f.m_id(x,y)=object?1.f:0.f;f.m_normal(x,y)=object?Float3(0,0,-1):Float3(0,0,1);truth(x,y)=Float3(v);f.m_beauty(x,y)=Float3(v+noise(rng));}
-  auto filtered=d.Filter(f);auto result=d.ProcessFrame(f);
+  auto filtered=atrous?d.FilterAtrous(f):d.Filter(f);auto result=d.ProcessFrame(f);
   if(t>0){require(d.m_valid(16+t,15),"moving object history retained");require(!d.m_valid(11+t,15),"newly exposed background history rejected");++rejected;}
   for(int y=0;y<40;++y)for(int x=0;x<64;++x){raw+=SqrDistance(f.m_beauty(x,y),truth(x,y));spatial+=SqrDistance(filtered(x,y),truth(x,y));temporal+=SqrDistance(result(x,y),truth(x,y));++count;}
   std::string n=std::to_string(100+t).substr(1);ppm(dir+"/raw-"+n+".ppm",f.m_beauty);ppm(dir+"/truth-"+n+".ppm",truth);ppm(dir+"/filter-"+n+".ppm",filtered);ppm(dir+"/result-"+n+".ppm",result);
@@ -97,4 +99,24 @@ void movingSequence(const std::string &dir){
  std::ofstream out(dir+"/metrics.json");out<<"{\"fixture\":\"synthetic moving object and disocclusion, not official scenes\",\"frames\":12,\"disocclusion_checks\":"<<rejected<<",\"raw_mse\":"<<raw/(3*count)<<",\"filter_mse\":"<<spatial/(3*count)<<",\"temporal_mse\":"<<temporal/(3*count)<<"}\n";
  std::cout<<"PASS moving sequence/disocclusion noise reduction "<<raw/(3*count)<<" "<<spatial/(3*count)<<" "<<temporal/(3*count)<<"\n";
 }
-int main(int argc,char **argv){try{filterTests();projectionTests();temporalTests();if(argc>1){sequence(argv[1]);movingSequence(std::string(argv[1])+"/moving");}}catch(const std::exception&e){std::cerr<<e.what()<<'\n';return 1;}}
+
+void atrousTests(){
+ Denoiser d;auto f=frame(9,9);d.m_sigmaColor=1e6f;
+ auto out=d.FilterAtrous(f);for(int y=0;y<9;++y)for(int x=0;x<9;++x)near(out(x,y),Float3(.5f));
+ for(int y=0;y<9;++y)for(int x=0;x<9;++x)f.m_beauty(x,y)=Float3(0);
+ f.m_beauty(4,4)=Float3(1);out=d.FilterAtrous(f,1);
+ // Independent B3 impulse response; center and one off-center tap.
+ near(out(4,4),Float3(36.f/256));near(out(3,4),Float3(24.f/256));
+ auto edge=frame(8,4);for(int y=0;y<4;++y)for(int x=4;x<8;++x){edge.m_normal(x,y)=Float3(0,0,-1);edge.m_beauty(x,y)=Float3(1);}
+ out=d.FilterAtrous(edge);for(int y=0;y<4;++y)for(int x=0;x<8;++x)near(out(x,y),Float3(x<4?.5f:1.f));
+ bool bad=false;try{d.FilterAtrous(edge,0);}catch(const std::invalid_argument&){bad=true;}require(bad,"invalid wavelet levels");
+ std::cout<<"PASS atrous constant/boundaries, B3 impulse response, normal edge, invalid levels\n";
+}
+void benchmark(const std::string &dir){
+ Denoiser d;auto f=frame(128,80);std::vector<double> b,a;volatile float sink=0;
+ for(int i=0;i<5;++i)for(int mode=0;mode<2;++mode){auto start=std::chrono::steady_clock::now();auto out=mode?d.FilterAtrous(f):d.Filter(f);sink+=out(64,40).x;
+  double ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count();(mode?a:b).push_back(ms);}
+ std::sort(a.begin(),a.end());std::sort(b.begin(),b.end());
+ std::ofstream out(dir+"/timing.json");out<<"{\"width\":128,\"height\":80,\"repeats\":5,\"bilateral_median_ms\":"<<b[2]<<",\"atrous_median_ms\":"<<a[2]<<",\"speedup\":"<<b[2]/a[2]<<"}\n";
+}
+int main(int argc,char **argv){try{filterTests();projectionTests();temporalTests();atrousTests();if(argc>1){sequence(argv[1]);movingSequence(std::string(argv[1])+"/moving");sequence(std::string(argv[1])+"/atrous",true);movingSequence(std::string(argv[1])+"/atrous/moving",true);if(argc>2)benchmark(argv[1]);}}catch(const std::exception&e){std::cerr<<e.what()<<'\n';return 1;}}

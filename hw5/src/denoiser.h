@@ -28,6 +28,7 @@ class Denoiser {
     void Reprojection(const FrameInfo &frameInfo);
     void TemporalAccumulation(const Buffer2D<Float3> &curFilteredColor);
     Buffer2D<Float3> Filter(const FrameInfo &frameInfo);
+    Buffer2D<Float3> FilterAtrous(const FrameInfo &frameInfo, int iterations = 5);
 
     Buffer2D<Float3> ProcessFrame(const FrameInfo &frameInfo);
 
@@ -37,6 +38,7 @@ class Denoiser {
     Buffer2D<Float3> m_misc;
     Buffer2D<bool> m_valid;
     bool m_useTemportal;
+    bool m_useAtrous = false;
 
     float m_alpha = 0.2f;
     float m_sigmaPlane = 0.1f;

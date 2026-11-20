@@ -43,8 +43,9 @@ FrameInfo LoadFrameInfo(const filesystem::path &inputDir, const int &idx) {
 }
 
 void Denoise(const filesystem::path &inputDir, const filesystem::path &outputDir,
-             const int &frameNum) {
+             const int &frameNum, bool atrous) {
     Denoiser denoiser;
+    denoiser.m_useAtrous=atrous;
     for (int i = 0; i < frameNum; i++) {
         std::cout << "Frame: " << i << std::endl;
         FrameInfo frameInfo = LoadFrameInfo(inputDir, i);
@@ -57,16 +58,19 @@ void Denoise(const filesystem::path &inputDir, const filesystem::path &outputDir
 
 int main(int argc, char **argv) {
     try {
-        if (argc != 4) {
-            std::cerr << "Usage: Denoise INPUT_DIRECTORY OUTPUT_DIRECTORY FRAME_COUNT\n";
+        if (argc != 4 && argc != 5) {
+            std::cerr << "Usage: Denoise INPUT_DIRECTORY OUTPUT_DIRECTORY FRAME_COUNT [bilateral|atrous]\n";
             return 2;
         }
         size_t end = 0;
         int count = std::stoi(argv[3], &end);
         if (argv[3][end] != '\0' || count <= 0)
             throw std::invalid_argument("frame count must be a positive integer");
+        const std::string filter=argc==5 ? argv[4]:"bilateral";
+        if(filter!="bilateral" && filter!="atrous")
+            throw std::invalid_argument("filter must be bilateral or atrous");
         std::filesystem::create_directories(argv[2]);
-        Denoise(filesystem::path(argv[1]), filesystem::path(argv[2]), count);
+        Denoise(filesystem::path(argv[1]), filesystem::path(argv[2]), count, filter=="atrous");
     } catch (const std::exception &e) {
         std::cerr << e.what() << '\n'; return 1;
     }
