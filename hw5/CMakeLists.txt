@@ -19,3 +19,6 @@ add_executable(denoiser-tests tests/denoiser-tests.cpp)
 target_link_libraries(denoiser-tests PRIVATE denoiser)
 enable_testing()
 add_test(NAME analytic COMMAND denoiser-tests)
+
+add_executable(io-tests tests/io-tests.cpp src/util/image.cpp src/util/imageutil.cpp)
+target_link_libraries(io-tests PRIVATE denoiser ZLIB::ZLIB)
